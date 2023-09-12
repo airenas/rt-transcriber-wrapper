@@ -11,6 +11,9 @@ import (
 
 func main() {
 	goapp.StartWithDefault()
+
+	printBanner()
+
 	cfg := goapp.Config
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
