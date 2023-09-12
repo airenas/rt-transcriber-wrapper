@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
-	"github.com/airenas/rt-transcriber-wrapper/internal/service/api"
+	"github.com/airenas/rt-transcriber-wrapper/internal/api"
 )
 
 // Joiner communicates with num joiner service service

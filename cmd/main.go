@@ -5,7 +5,7 @@ import (
 
 	"github.com/airenas/go-app/pkg/goapp"
 	"github.com/airenas/rt-transcriber-wrapper/internal/service"
-	"github.com/airenas/rt-transcriber-wrapper/internal/service/handlers"
+	"github.com/airenas/rt-transcriber-wrapper/internal/handlers"
 	"github.com/labstack/gommon/color"
 )
 
