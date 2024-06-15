@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
+	"github.com/airenas/rt-transcriber-wrapper/internal/api"
+	"github.com/airenas/rt-transcriber-wrapper/internal/utils"
 )
 
 // Joiner communicates with num joiner service service
@@ -32,20 +34,16 @@ func NewJoiner(getURL string) (*Joiner, error) {
 	return &res, nil
 }
 
-func (sp *Joiner) Process(ctx context.Context, data string) (string, error) {
-	goapp.Log.Debug().Msg("call joiner")
-	inData, err := decode(data)
-	if err != nil {
-		return "", err
-	}
-	if len(inData.Result.Hypotheses) > 0 {
-		newText, err := sp.transform(ctx, inData.Result.Hypotheses[0].Transcript)
+func (sp *Joiner) Process(ctx context.Context, data *api.FullResult) (*api.FullResult, error) {
+	defer utils.MeasureTime("joiner", time.Now())
+	if len(data.Result.Hypotheses) > 0 {
+		newText, err := sp.transform(ctx, data.Result.Hypotheses[0].Transcript)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		inData.Result.Hypotheses[0].Transcript = newText
+		data.Result.Hypotheses[0].Transcript = newText
 	}
-	return encode(inData)
+	return data, nil
 }
 
 func (sp *Joiner) transform(ctx context.Context, text string) (string, error) {

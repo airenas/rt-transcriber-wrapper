@@ -35,46 +35,25 @@ func NewPunctuator(getURL string) (*Punctuator, error) {
 	return &res, nil
 }
 
-func (sp *Punctuator) Process(ctx context.Context, data string) (string, error) {
-	inData, err := decode(data)
-	if err != nil {
-		return "", err
-	}
-	if len(inData.Result.Hypotheses) > 0 {
+func (sp *Punctuator) Process(ctx context.Context, data *api.FullResult) (*api.FullResult, error) {
+	defer utils.MeasureTime("punctuator", time.Now())
+	if len(data.Result.Hypotheses) > 0 {
 		ctx, ctxData := utils.CustomContext(ctx)
-		str := inData.Result.Hypotheses[0].Transcript
-		if inData.Result.Final {
+		str := data.Result.Hypotheses[0].Transcript
+		if data.Result.Final {
 			ctxData.Finals = append(ctxData.Finals, str)
 		} else {
 			ctxData.PartialResult = str
 		}
-		goapp.Log.Debug().Str("text", strings.Join(ctxData.Finals, " ") + " " + ctxData.PartialResult).Msg("all text")
+		goapp.Log.Debug().Str("text", strings.Join(ctxData.Finals, " ")+" "+ctxData.PartialResult).Msg("all text")
 		newText, err := sp.transform(ctx, str)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		inData.Result.Hypotheses[0].Transcript = newText
+		data.Result.Hypotheses[0].Transcript = newText
 	}
-	return encode(inData)
+	return data, nil
 
-}
-
-func decode(data string) (*api.FullResult, error) {
-	goapp.Log.Debug().Msg("call punctuator")
-	res := &api.FullResult{}
-	err := json.NewDecoder(bytes.NewBufferString(data)).Decode(&res)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
-}
-
-func encode(inData *api.FullResult) (string, error) {
-	b := new(bytes.Buffer)
-	if err := json.NewEncoder(b).Encode(inData); err != nil {
-		return "", err
-	}
-	return b.String(), nil
 }
 
 func (sp *Punctuator) transform(ctx context.Context, text string) (string, error) {

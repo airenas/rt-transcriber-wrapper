@@ -28,18 +28,22 @@ func main() {
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init list handler")
 	}
+
+	data.WSHandlerSpeech.Middleware = hList
+	hList.Add(handlers.NewCleaner())
+
 	joiner, err := handlers.NewJoiner(cfg.GetString("joiner.url"))
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init joiner")
 	}
 	hList.Add(joiner)
+
 	punctuator, err := handlers.NewPunctuator(cfg.GetString("punctuator.url"))
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init punctuator")
 	}
 	hList.Add(punctuator)
-	data.WSHandlerSpeech.Middleware = hList
-
+	
 	if err := service.StartWebServer(data); err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't start web server")
 	}
