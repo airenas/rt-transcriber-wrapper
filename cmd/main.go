@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/airenas/go-app/pkg/goapp"
-	"github.com/airenas/rt-transcriber-wrapper/internal/service"
 	"github.com/airenas/rt-transcriber-wrapper/internal/handlers"
+	"github.com/airenas/rt-transcriber-wrapper/internal/service"
 	"github.com/labstack/gommon/color"
 )
 
@@ -24,11 +24,21 @@ func main() {
 	data.Port = cfg.GetInt("port")
 	data.WSHandlerStatus = service.NewWSHandler(cfg.GetString("status.url"))
 	data.WSHandlerSpeech = service.NewWSHandler(cfg.GetString("speech.url"))
-	var err error
-	data.WSHandlerSpeech.Middleware, err = handlers.NewJoiner(cfg.GetString("joiner.url"))
+	hList, err := handlers.NewListHandler()
+	if err != nil {
+		goapp.Log.Fatal().Err(err).Msg("can't init list handler")
+	}
+	joiner, err := handlers.NewJoiner(cfg.GetString("joiner.url"))
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init joiner")
 	}
+	hList.Add(joiner)
+	punctuator, err := handlers.NewPunctuator(cfg.GetString("punctuator.url"))
+	if err != nil {
+		goapp.Log.Fatal().Err(err).Msg("can't init punctuator")
+	}
+	hList.Add(punctuator)
+	data.WSHandlerSpeech.Middleware = hList
 
 	if err := service.StartWebServer(data); err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't start web server")

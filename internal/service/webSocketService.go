@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
+	"github.com/airenas/rt-transcriber-wrapper/internal/utils"
 	"github.com/gorilla/websocket"
 )
 
@@ -58,6 +59,7 @@ func (kp *WSConnHandler) HandleConnection(ctx context.Context, conn *websocket.C
 		defer wg.Done()
 		defer cf()
 		readCh := readWebSocket(ctx, in)
+		ctx, _ := utils.CustomContext(ctx)
 		for {
 			var d data
 			var ok bool

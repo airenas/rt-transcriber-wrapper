@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
-	"github.com/airenas/rt-transcriber-wrapper/internal/api"
 )
 
 // Joiner communicates with num joiner service service
@@ -29,12 +28,13 @@ func NewJoiner(getURL string) (*Joiner, error) {
 	res.getURL = getURL
 	res.timeout = time.Second * 3
 	res.httpclient = asrHTTPClient()
+	goapp.Log.Info().Str("url", getURL).Msg("Joiner")
 	return &res, nil
 }
 
 func (sp *Joiner) Process(ctx context.Context, data string) (string, error) {
-	inData := &api.FullResult{}
-	err := json.NewDecoder(bytes.NewBufferString(data)).Decode(&inData)
+	goapp.Log.Debug().Msg("call joiner")
+	inData, err := decode(data)
 	if err != nil {
 		return "", err
 	}
@@ -45,11 +45,7 @@ func (sp *Joiner) Process(ctx context.Context, data string) (string, error) {
 		}
 		inData.Result.Hypotheses[0].Transcript = newText
 	}
-	b := new(bytes.Buffer)
-	if err := json.NewEncoder(b).Encode(inData); err != nil {
-		return "", err
-	}
-	return b.String(), nil
+	return encode(inData)
 }
 
 func (sp *Joiner) transform(ctx context.Context, text string) (string, error) {
@@ -99,12 +95,10 @@ func asrHTTPClient() *http.Client {
 }
 
 func newTransport() http.RoundTripper {
-	// default roundripper is not well suited for our case
-	// it has just 2 idle connections per host, so try to tune a bit
 	res := http.DefaultTransport.(*http.Transport).Clone()
-	res.MaxConnsPerHost = 20
-	res.MaxIdleConns = 10
-	res.MaxIdleConnsPerHost = 5
+	res.MaxConnsPerHost = 5
+	res.MaxIdleConns = 2
+	res.MaxIdleConnsPerHost = 2
 	res.IdleConnTimeout = 90 * time.Second
 	return res
 }
