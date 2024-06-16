@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
 	"github.com/airenas/rt-transcriber-wrapper/internal/handlers"
@@ -30,7 +34,12 @@ func main() {
 	}
 
 	data.WSHandlerSpeech.Middleware = hList
-	hList.Add(handlers.NewCleaner())
+
+	cleaner, err := handlers.NewCleaner()
+	if err != nil {
+		goapp.Log.Fatal().Err(err).Msg("can't init cleaner")
+	}
+	hList.Add(cleaner)
 
 	joiner, err := handlers.NewJoiner(cfg.GetString("joiner.url"))
 	if err != nil {
@@ -43,9 +52,27 @@ func main() {
 		goapp.Log.Fatal().Err(err).Msg("can't init punctuator")
 	}
 	hList.Add(punctuator)
-	
-	if err := service.StartWebServer(data); err != nil {
+
+	doneCh, err := service.StartWebServer(data)
+	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't start web server")
+	}
+
+	/////////////////////// Waiting for terminate
+	waitCh := make(chan os.Signal, 2)
+	signal.Notify(waitCh, os.Interrupt, syscall.SIGTERM)
+	select {
+	case <-waitCh:
+		goapp.Log.Info().Msg("Got exit signal")
+	case <-doneCh:
+		goapp.Log.Info().Msg("Service exit")
+	}
+	cancelFunc()
+	select {
+	case <-doneCh:
+		goapp.Log.Info().Msg("All code returned. Now exit. Bye")
+	case <-time.After(time.Second * 15):
+		goapp.Log.Warn().Msg("Timeout gracefull shutdown")
 	}
 }
 

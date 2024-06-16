@@ -42,6 +42,7 @@ func (sp *Punctuator) Process(ctx context.Context, data *api.FullResult) (*api.F
 		str := data.Result.Hypotheses[0].Transcript
 		if data.Result.Final {
 			ctxData.Finals = append(ctxData.Finals, str)
+			ctxData.PartialResult = ""
 		} else {
 			ctxData.PartialResult = str
 		}

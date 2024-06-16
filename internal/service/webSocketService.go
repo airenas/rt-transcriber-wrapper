@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -112,12 +114,27 @@ func readWebSocket(ctx context.Context, in *websocket.Conn) <-chan data {
 			goapp.Log.Debug().Msg("handleConnection")
 			mType, message, err := in.ReadMessage()
 			if err != nil {
+				if websocket.IsCloseError(err, websocket.CloseAbnormalClosure) || errors.Is(err, net.ErrClosed) {
+					goapp.Log.Info().Msg("connection closed")
+					return
+				}
 				goapp.Log.Error().Err(err).Send()
 				return
 			}
 			msg := data{t: mType, msg: message}
-			resCh <- msg
-			time.Sleep(20 * time.Millisecond)
+
+			select {
+			case resCh <- msg:
+				timer := time.NewTimer(20 * time.Millisecond)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 	return resCh

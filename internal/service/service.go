@@ -27,10 +27,10 @@ type Data struct {
 }
 
 // StartWebServer starts echo web service
-func StartWebServer(data *Data) error {
+func StartWebServer(data *Data) (<-chan struct{}, error) {
 	goapp.Log.Info().Msgf("Starting wrapper service at %d", data.Port)
 	if err := validate(data); err != nil {
-		return err
+		return nil, err
 	}
 
 	portStr := strconv.Itoa(data.Port)
@@ -44,7 +44,15 @@ func StartWebServer(data *Data) error {
 
 	gracehttp.SetLogger(log.New(goapp.Log, "", 0))
 
-	return gracehttp.Serve(e.Server)
+	res := make(chan struct{}, 1)
+	go func() {
+		defer close(res)
+		if err := gracehttp.Serve(e.Server); err != nil {
+			goapp.Log.Error().Err(err).Msg("can't start web server")
+		}
+		goapp.Log.Info().Msg("exit http routine")
+	}()
+	return res, nil
 }
 
 var promMdlw *prometheus.Prometheus
