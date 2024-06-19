@@ -114,7 +114,8 @@ func readWebSocket(ctx context.Context, in *websocket.Conn) <-chan data {
 			goapp.Log.Debug().Msg("handleConnection")
 			mType, message, err := in.ReadMessage()
 			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseAbnormalClosure) || errors.Is(err, net.ErrClosed) {
+				if websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) ||
+					errors.Is(err, net.ErrClosed) {
 					goapp.Log.Info().Msg("connection closed")
 					return
 				}

@@ -40,13 +40,14 @@ func (sp *Punctuator) Process(ctx context.Context, data *api.FullResult) (*api.F
 	if len(data.Result.Hypotheses) > 0 {
 		ctx, ctxData := utils.CustomContext(ctx)
 		str := data.Result.Hypotheses[0].Transcript
+		goapp.Log.Debug().Str("text", str).Int("segment", data.Segment).Msg("got")
 		if data.Result.Final {
 			ctxData.Finals = append(ctxData.Finals, str)
 			ctxData.PartialResult = ""
 		} else {
 			ctxData.PartialResult = str
 		}
-		goapp.Log.Debug().Str("text", strings.Join(ctxData.Finals, " ")+" "+ctxData.PartialResult).Msg("all text")
+		goapp.Log.Debug().Str("text", strings.Join(ctxData.Finals, " ")+" "+ctxData.PartialResult).Int("segment", data.Segment).Msg("all text")
 		newText, err := sp.transform(ctx, str)
 		if err != nil {
 			return nil, err
