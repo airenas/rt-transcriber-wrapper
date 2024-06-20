@@ -11,9 +11,21 @@ const (
 	CtxContext key = iota
 )
 
+type ProcessData struct {
+	Original   string
+	Punctuated string
+}
+
+type Segments struct {
+	Final     bool
+	ID          int
+	OriginalStr string
+	Processed   []*ProcessData
+}
+
 type CustomData struct {
 	PartialResult string
-	Finals        []string
+	Segments      []*Segments
 }
 
 func CustomContext(ctx context.Context) (context.Context, *CustomData) {
