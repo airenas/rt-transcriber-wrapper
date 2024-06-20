@@ -22,7 +22,7 @@ type FullResult struct {
 	SegmentLength float64        `json:"segment-length"`
 	TotalLength   float64        `json:"total-length"`
 	Result        Result         `json:"result,omitempty"`
-	Segment       int            `json:"segment,omitempty"`
+	Segment       int            `json:"segment"`
 	ID            string         `json:"id,omitempty"`
 	OldUpdates    []*ShortResult `json:"old-updates,omitempty"`
 }
