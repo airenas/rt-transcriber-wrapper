@@ -39,18 +39,17 @@ func main() {
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init cleaner")
 	}
-	hList.Add(cleaner)
-
 	joiner, err := handlers.NewJoiner(cfg.GetString("joiner.url"))
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init joiner")
 	}
-	hList.Add(joiner)
-
 	punctuator, err := handlers.NewPunctuator(cfg.GetString("punctuator.url"))
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init punctuator")
 	}
+
+	hList.Add(cleaner)
+	hList.Add(joiner)
 	hList.Add(punctuator)
 
 	doneCh, err := service.StartWebServer(data)
