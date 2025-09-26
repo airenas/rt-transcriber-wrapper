@@ -26,14 +26,15 @@ func main() {
 	data := &service.Data{}
 	data.Ctx = ctx
 	data.Port = cfg.GetInt("port")
-	data.WSHandlerStatus = service.NewWSHandler(cfg.GetString("status.url"))
-	data.WSHandlerSpeech = service.NewWSHandler(cfg.GetString("speech.url"))
+	data.WSHandlerStatus = service.NewWSSimpleHandler(cfg.GetString("status.url"))
+	audioManager := service.NewMemoryAudioManager()
+	data.AudioManager = audioManager
+	trHandler := service.NewWSTranscriptionHandler(cfg.GetString("speech.url"), audioManager)
+	data.WSHandlerSpeech = trHandler
 	hList, err := handlers.NewListHandler()
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init list handler")
 	}
-
-	data.WSHandlerSpeech.Middleware = hList
 
 	cleaner, err := handlers.NewCleaner()
 	if err != nil {
@@ -51,6 +52,7 @@ func main() {
 	hList.Add(cleaner)
 	hList.Add(joiner)
 	hList.Add(punctuator)
+	trHandler.Middleware = hList
 
 	doneCh, err := service.StartWebServer(data)
 	if err != nil {

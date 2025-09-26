@@ -1,0 +1,112 @@
+package service
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"sync"
+
+	"github.com/airenas/go-app/pkg/goapp"
+	"github.com/go-audio/audio"
+	"github.com/go-audio/wav"
+)
+
+type MemBuffer struct {
+	buf []byte
+	pos int64
+}
+
+func (m *MemBuffer) Write(p []byte) (int, error) {
+	end := m.pos + int64(len(p))
+	if end > int64(len(m.buf)) {
+		newBuf := make([]byte, end)
+		copy(newBuf, m.buf)
+		m.buf = newBuf
+	}
+	copy(m.buf[m.pos:], p)
+	m.pos = end
+	return len(p), nil
+}
+
+func (m *MemBuffer) Seek(offset int64, whence int) (int64, error) {
+	var newPos int64
+	switch whence {
+	case io.SeekStart:
+		newPos = offset
+	case io.SeekCurrent:
+		newPos = m.pos + offset
+	case io.SeekEnd:
+		newPos = int64(len(m.buf)) + offset
+	}
+	if newPos < 0 {
+		return 0, fmt.Errorf("negative position")
+	}
+	m.pos = newPos
+	return newPos, nil
+}
+
+func (m *MemBuffer) Bytes() []byte {
+	return m.buf
+}
+
+type MemoryAudioManager struct {
+	data map[string][]byte
+	lock sync.RWMutex
+}
+
+func NewMemoryAudioManager() *MemoryAudioManager {
+	return &MemoryAudioManager{
+		data: make(map[string][]byte),
+	}
+}
+
+func (am *MemoryAudioManager) SaveAudio(id string, chunks [][]byte) error {
+	goapp.Log.Warn().Str("id", id).Msg("Save audio")
+	am.lock.Lock()
+	defer am.lock.Unlock()
+
+	var pcmData bytes.Buffer
+	for _, chunk := range chunks {
+		pcmData.Write(chunk)
+	}
+
+	raw := pcmData.Bytes()
+	samples := make([]int, len(raw)/2)
+	for i := 0; i < len(samples); i++ {
+		samples[i] = int(int16(raw[2*i]) | int16(raw[2*i+1])<<8)
+	}
+
+	buf := &audio.IntBuffer{
+		Format: &audio.Format{
+			NumChannels: 1,
+			SampleRate:  16000,
+		},
+		Data:           samples,
+		SourceBitDepth: 16,
+	}
+
+	wavBuf := &MemBuffer{buf: make([]byte, 0)}
+	enc := wav.NewEncoder(wavBuf, 16000, 16, 1, 1)
+	if err := enc.Write(buf); err != nil {
+		return err
+	}
+	if err := enc.Close(); err != nil {
+		return err
+	}
+
+	am.data[id] = wavBuf.Bytes()
+	return nil
+}
+
+func (am *MemoryAudioManager) GetAudio(id string) ([]byte, error) {
+	goapp.Log.Warn().Str("id", id).Msg("Getting audio")
+	am.lock.RLock()
+	defer am.lock.RUnlock()
+	data, ok := am.data[id]
+	if !ok {
+		return nil, fmt.Errorf("not found")
+	}
+	cp := make([]byte, len(data))
+	copy(cp, data)
+	return cp, nil
+}

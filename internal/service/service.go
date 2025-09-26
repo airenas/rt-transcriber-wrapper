@@ -18,11 +18,21 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 )
 
+type WSHandler interface {
+	HandleConnection(context.Context, *websocket.Conn, *http.Request) error
+}
+
+type AudioManager interface {
+	GetAudio(id string) ([]byte, error)
+}
+
+
 // Data keeps data required for service work
 type Data struct {
 	Port            int
-	WSHandlerStatus *WSConnHandler
-	WSHandlerSpeech *WSConnHandler
+	WSHandlerStatus WSHandler
+	WSHandlerSpeech WSHandler
+	AudioManager	AudioManager
 	Ctx             context.Context
 }
 
@@ -69,6 +79,7 @@ func initRoutes(data *Data) *echo.Echo {
 	e.GET("/live", live(data))
 	e.GET("/client/ws/status", subscribe(data, data.WSHandlerStatus))
 	e.GET("/client/ws/speech", subscribe(data, data.WSHandlerSpeech))
+	e.GET("/client/audio/:id", audioHandler(data))
 
 	goapp.Log.Info().Msg("Routes:")
 	for _, r := range e.Routes() {
@@ -98,7 +109,7 @@ var wsUpgrader = websocket.Upgrader{
 		return true
 	}}
 
-func subscribe(data *Data, handler *WSConnHandler) func(echo.Context) error {
+func subscribe(data *Data, handler WSHandler) func(echo.Context) error {
 	return func(c echo.Context) error {
 		ws, err := wsUpgrader.Upgrade(c.Response(), c.Request(), nil)
 		if err != nil {
@@ -107,6 +118,22 @@ func subscribe(data *Data, handler *WSConnHandler) func(echo.Context) error {
 		}
 		defer ws.Close()
 
-		return handler.HandleConnection(data.Ctx, ws, c.Request().URL.RawQuery)
+		return handler.HandleConnection(data.Ctx, ws, c.Request())
+	}
+}
+
+func audioHandler(data *Data) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		id := c.Param("id")
+		goapp.Log.Warn().Str("id", id).Msg("Getting audio")
+
+		finalId := fmt.Sprintf("audio-%s-%s", "test", id)
+
+		data, err := data.AudioManager.GetAudio(finalId)
+		if err != nil {
+			return c.String(http.StatusNotFound, "audio not found")
+		}
+
+		return c.Blob(http.StatusOK, "audio/wav", data)
 	}
 }

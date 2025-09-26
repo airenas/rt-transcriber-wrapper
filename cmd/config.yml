@@ -4,10 +4,10 @@ status:
 speech:
   url: ws://localhost:8082/client/ws/speech  
 joiner:
-  url: http://localhost:3003/invnorm_num
+  url: http://localhost:8081/invnorm_num
 punctuator:
   url: http://localhost:8083/punctuation
 
 logger:
-    level: DEBUG 
+    level: warn 
     out: console 
