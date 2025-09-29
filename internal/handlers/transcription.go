@@ -14,7 +14,7 @@ import (
 )
 
 type AudioSaver interface {
-	SaveAudio(id string, data [][]byte) error
+	SaveAudio(ctx context.Context, id string, data [][]byte) error
 }
 
 type State int
@@ -73,9 +73,9 @@ func NewTranscriptionSession(segment int, word int) *TranscriptionSession {
 	return &TranscriptionSession{StartSegment: segment, EndSegment: -1, ID: ulid.Make().String(), startPos: &WordPos{Segment: segment, WordIndex: word}}
 }
 
-func (rs *RecordSession) SaveAudio() error {
+func (rs *RecordSession) SaveAudio(ctx context.Context) error {
 	if rs.audioKeeper != nil {
-		return rs.audioSaver.SaveAudio(fmt.Sprintf("audio-%s-%s", rs.user, rs.audioKeeper.ID), rs.audioKeeper.Audio)
+		return rs.audioSaver.SaveAudio(ctx, fmt.Sprintf("audio-%s-%s", rs.user, rs.audioKeeper.ID), rs.audioKeeper.Audio)
 	}
 	return nil
 }
@@ -98,12 +98,12 @@ func (rs *RecordSession) Start(auto bool) {
 	rs.audioKeeper = &AudioKeeper{ID: rs.Transcription.ID}
 }
 
-func (rs *RecordSession) Stop() {
+func (rs *RecordSession) Stop(ctx context.Context) {
 	rs.lock.Lock()
 	defer rs.lock.Unlock()
 
 	if rs.audioKeeper != nil {
-		rs.SaveAudio()
+		rs.SaveAudio(ctx)
 		rs.audioKeeper = nil
 	}
 	if rs.State == Transcribing {
@@ -203,7 +203,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 			rs.State = StoppingTranscription
 			rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: indexStop}
 			if rs.audioKeeper != nil {
-				rs.SaveAudio()
+				rs.SaveAudio(ctx)
 				rs.audioKeeper = nil
 			}
 			if rs.Transcription != nil {

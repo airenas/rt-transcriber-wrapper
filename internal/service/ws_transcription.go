@@ -33,13 +33,13 @@ type WSTranscriptionHandler struct {
 	audioSaver AudioSaver
 }
 
-type ConnState struct {
-	mu     sync.RWMutex
-	active bool
-}
+// type ConnState struct {
+// 	mu     sync.RWMutex
+// 	active bool
+// }
 
 type AudioSaver interface {
-	SaveAudio(id string, data [][]byte) error
+	SaveAudio(ctx context.Context, id string, data [][]byte) error
 }
 
 // NewWSTranscriptionHandler creates handler
@@ -112,7 +112,7 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 			return out, in, nil
 		}
 		if inp == api.EventStop {
-			session.Stop()
+			session.Stop(_ctx)
 			return out, in, nil
 		}
 
@@ -171,7 +171,10 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 	})
 
 	wg.Wait()
-	session.SaveAudio()
+	if err := session.SaveAudio(ctx); err != nil {
+		goapp.Log.Error().Err(err).Msg("failed to save audio")
+	}
+
 	goapp.Log.Info().Msg("handleConnection finish")
 	return nil
 }

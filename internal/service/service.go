@@ -29,12 +29,12 @@ type WSHandler interface {
 }
 
 type AudioManager interface {
-	GetAudio(id string) ([]byte, error)
+	GetAudio(ctx context.Context, id string) ([]byte, error)
 }
 
 type ConfigManager interface {
-	GetConfig(userID string) (*domain.User, error)
-	SaveConfig(user *domain.User) error
+	GetConfig(ctx context.Context, userID string) (*domain.User, error)
+	SaveConfig(ctx context.Context, user *domain.User) error
 }
 
 type TextManager interface {
@@ -183,7 +183,7 @@ func audioHandler(data *Data) echo.HandlerFunc {
 
 		finalId := fmt.Sprintf("audio-%s-%s", user.ID, id)
 
-		data, err := data.AudioManager.GetAudio(finalId)
+		data, err := data.AudioManager.GetAudio(c.Request().Context(), finalId)
 		if err != nil {
 			return c.String(http.StatusNotFound, "audio not found")
 		}
@@ -200,7 +200,7 @@ func configHandler(data *Data) echo.HandlerFunc {
 		}
 		goapp.Log.Info().Str("id", user.ID).Msg("Getting config")
 
-		data, err := data.ConfigManager.GetConfig(user.ID)
+		data, err := data.ConfigManager.GetConfig(c.Request().Context(), user.ID)
 		if err != nil {
 			return c.String(http.StatusNotFound, "config not found")
 		}
@@ -224,7 +224,7 @@ func configSaveHandler(data *Data) echo.HandlerFunc {
 			return c.String(http.StatusBadRequest, "invalid input")
 		}
 
-		err = data.ConfigManager.SaveConfig(&domain.User{
+		err = data.ConfigManager.SaveConfig(c.Request().Context(), &domain.User{
 			ID:       user.ID,
 			SkipTour: input.SkipTour,
 		})

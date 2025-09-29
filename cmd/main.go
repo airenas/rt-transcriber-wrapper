@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
+	"github.com/airenas/rt-transcriber-wrapper/internal/db"
 	"github.com/airenas/rt-transcriber-wrapper/internal/handlers"
 	"github.com/airenas/rt-transcriber-wrapper/internal/service"
 	"github.com/labstack/gommon/color"
@@ -28,7 +29,12 @@ func main() {
 	data.Port = cfg.GetInt("port")
 	data.DevMode = cfg.GetBool("devMode")
 	data.WSHandlerStatus = service.NewWSSimpleHandler(cfg.GetString("status.url"))
-	dataManager := service.NewMemoryDataManager()
+
+	dataManager, err := db.NewRedisDataManager(cfg.GetString("redis.url"))
+	if err != nil {
+		goapp.Log.Fatal().Err(err).Msg("can't init redis")
+	}
+	defer dataManager.Close()
 	data.AudioManager = dataManager
 	data.ConfigManager = dataManager
 	data.TextManager = dataManager

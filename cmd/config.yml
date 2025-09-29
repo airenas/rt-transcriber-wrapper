@@ -3,12 +3,14 @@ devMode: true
 status:
   url: ws://localhost:8082/client/ws/status
 speech:
-  url: ws://localhost:8082/client/ws/speech  
+  url: ws://localhost:8082/client/ws/speech
 joiner:
   url: http://localhost:8081/invnorm_num
 punctuator:
   url: http://localhost:8083/punctuation
+redis:
+  url: redis://localhost:6379/0
 
 logger:
-    level: warn 
-    out: console 
+  level: debug
+  out: console

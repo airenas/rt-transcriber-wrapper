@@ -1,4 +1,4 @@
-package service
+package db
 
 import (
 	"bytes"
@@ -72,36 +72,11 @@ func (am *MemoryDataManager) SaveAudio(id string, chunks [][]byte) error {
 	am.lock.Lock()
 	defer am.lock.Unlock()
 
-	var pcmData bytes.Buffer
-	for _, chunk := range chunks {
-		pcmData.Write(chunk)
+	res, err := to_wav(chunks)
+	if err != nil {
+		return fmt.Errorf("to wav: %w", err)
 	}
-
-	raw := pcmData.Bytes()
-	samples := make([]int, len(raw)/2)
-	for i := 0; i < len(samples); i++ {
-		samples[i] = int(int16(raw[2*i]) | int16(raw[2*i+1])<<8)
-	}
-
-	buf := &audio.IntBuffer{
-		Format: &audio.Format{
-			NumChannels: 1,
-			SampleRate:  16000,
-		},
-		Data:           samples,
-		SourceBitDepth: 16,
-	}
-
-	wavBuf := &MemBuffer{buf: make([]byte, 0)}
-	enc := wav.NewEncoder(wavBuf, 16000, 16, 1, 1)
-	if err := enc.Write(buf); err != nil {
-		return err
-	}
-	if err := enc.Close(); err != nil {
-		return err
-	}
-
-	am.data[id] = wavBuf.Bytes()
+	am.data[id] = res
 	return nil
 }
 
@@ -142,7 +117,7 @@ func (am *MemoryDataManager) SaveConfig(user *domain.User) error {
 func (am *MemoryDataManager) GetTexts(ctx context.Context, userID string) (*domain.Texts, error) {
 	am.lock.RLock()
 	defer am.lock.RUnlock()
-	
+
 	data, ok := am.texts[userID]
 	if !ok {
 		return &domain.Texts{}, nil
@@ -158,4 +133,37 @@ func (am *MemoryDataManager) SaveTexts(ctx context.Context, userID string, input
 
 	am.texts[userID] = input
 	return nil
+}
+
+func to_wav(chunks [][]byte) ([]byte, error) {
+	var pcmData bytes.Buffer
+	for _, chunk := range chunks {
+		pcmData.Write(chunk)
+	}
+
+	raw := pcmData.Bytes()
+	samples := make([]int, len(raw)/2)
+	for i := 0; i < len(samples); i++ {
+		samples[i] = int(int16(raw[2*i]) | int16(raw[2*i+1])<<8)
+	}
+
+	buf := &audio.IntBuffer{
+		Format: &audio.Format{
+			NumChannels: 1,
+			SampleRate:  16000,
+		},
+		Data:           samples,
+		SourceBitDepth: 16,
+	}
+
+	wavBuf := &MemBuffer{buf: make([]byte, 0)}
+	enc := wav.NewEncoder(wavBuf, 16000, 16, 1, 1)
+	if err := enc.Write(buf); err != nil {
+		return nil, fmt.Errorf("write wav: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return nil, fmt.Errorf("close wav: %w", err)
+	}
+
+	return wavBuf.Bytes(), nil
 }
