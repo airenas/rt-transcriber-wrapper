@@ -53,9 +53,10 @@ func NewWSTranscriptionHandler(url string, audioSaver AudioSaver) *WSTranscripti
 }
 
 // HandleConnection loops until connection active and save connection with provided ID as key
-func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *websocket.Conn, req *http.Request) error {
+func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *websocket.Conn, req *http.Request, userID string) error {
 	query := req.URL.RawQuery
 	goapp.Log.Info().Str("query", query).Msg("got")
+
 	defer conn.Close()
 	url := kp.backendURL
 	if query != "" {
@@ -79,7 +80,7 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 		}
 		return conn.WriteMessage(websocket.TextMessage, []byte(msg))
 	}
-	session := handlers.NewRecordSession(kp.audioSaver, "test", writeFunc)
+	session := handlers.NewRecordSession(kp.audioSaver, userID, writeFunc)
 
 	wg.Add(2)
 

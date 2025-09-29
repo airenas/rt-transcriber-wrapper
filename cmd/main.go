@@ -26,10 +26,13 @@ func main() {
 	data := &service.Data{}
 	data.Ctx = ctx
 	data.Port = cfg.GetInt("port")
+	data.DevMode = cfg.GetBool("devMode")
 	data.WSHandlerStatus = service.NewWSSimpleHandler(cfg.GetString("status.url"))
-	audioManager := service.NewMemoryAudioManager()
-	data.AudioManager = audioManager
-	trHandler := service.NewWSTranscriptionHandler(cfg.GetString("speech.url"), audioManager)
+	dataManager := service.NewMemoryDataManager()
+	data.AudioManager = dataManager
+	data.ConfigManager = dataManager
+	data.TextManager = dataManager
+	trHandler := service.NewWSTranscriptionHandler(cfg.GetString("speech.url"), dataManager)
 	data.WSHandlerSpeech = trHandler
 	hList, err := handlers.NewListHandler()
 	if err != nil {

@@ -26,7 +26,7 @@ func NewWSSimpleHandler(url string) *WSSimpleHandler {
 }
 
 // HandleConnection loops until connection active and save connection with provided ID as key
-func (kp *WSSimpleHandler) HandleConnection(ctx context.Context, conn *websocket.Conn, req *http.Request) error {
+func (kp *WSSimpleHandler) HandleConnection(ctx context.Context, conn *websocket.Conn, req *http.Request, _userID string) error {
 	query := req.URL.RawQuery
 
 	goapp.Log.Info().Str("query", query).Msg("got")

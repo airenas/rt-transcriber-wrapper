@@ -2,11 +2,13 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sync"
 
 	"github.com/airenas/go-app/pkg/goapp"
+	"github.com/airenas/rt-transcriber-wrapper/internal/domain"
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
 )
@@ -49,18 +51,23 @@ func (m *MemBuffer) Bytes() []byte {
 	return m.buf
 }
 
-type MemoryAudioManager struct {
-	data map[string][]byte
+type MemoryDataManager struct {
+	data    map[string][]byte
+	configs map[string]*domain.User
+	texts   map[string]*domain.Texts
+
 	lock sync.RWMutex
 }
 
-func NewMemoryAudioManager() *MemoryAudioManager {
-	return &MemoryAudioManager{
-		data: make(map[string][]byte),
+func NewMemoryDataManager() *MemoryDataManager {
+	return &MemoryDataManager{
+		data:    make(map[string][]byte),
+		configs: make(map[string]*domain.User),
+		texts:   make(map[string]*domain.Texts),
 	}
 }
 
-func (am *MemoryAudioManager) SaveAudio(id string, chunks [][]byte) error {
+func (am *MemoryDataManager) SaveAudio(id string, chunks [][]byte) error {
 	goapp.Log.Warn().Str("id", id).Msg("Save audio")
 	am.lock.Lock()
 	defer am.lock.Unlock()
@@ -98,7 +105,7 @@ func (am *MemoryAudioManager) SaveAudio(id string, chunks [][]byte) error {
 	return nil
 }
 
-func (am *MemoryAudioManager) GetAudio(id string) ([]byte, error) {
+func (am *MemoryDataManager) GetAudio(id string) ([]byte, error) {
 	goapp.Log.Warn().Str("id", id).Msg("Getting audio")
 	am.lock.RLock()
 	defer am.lock.RUnlock()
@@ -109,4 +116,46 @@ func (am *MemoryAudioManager) GetAudio(id string) ([]byte, error) {
 	cp := make([]byte, len(data))
 	copy(cp, data)
 	return cp, nil
+}
+
+// GetConfig implements ConfigManager.
+func (am *MemoryDataManager) GetConfig(userID string) (*domain.User, error) {
+	am.lock.RLock()
+	defer am.lock.RUnlock()
+	data, ok := am.configs[userID]
+	if !ok {
+		return &domain.User{ID: userID}, nil
+	}
+	cp := *data
+	return &cp, nil
+}
+
+// SaveConfig implements ConfigManager.
+func (am *MemoryDataManager) SaveConfig(user *domain.User) error {
+	am.lock.Lock()
+	defer am.lock.Unlock()
+	am.configs[user.ID] = user
+	return nil
+}
+
+// GetTexts implements TextManager.
+func (am *MemoryDataManager) GetTexts(ctx context.Context, userID string) (*domain.Texts, error) {
+	am.lock.RLock()
+	defer am.lock.RUnlock()
+	
+	data, ok := am.texts[userID]
+	if !ok {
+		return &domain.Texts{}, nil
+	}
+	cp := *data
+	return &cp, nil
+}
+
+// SaveTexts implements TextManager.
+func (am *MemoryDataManager) SaveTexts(ctx context.Context, userID string, input *domain.Texts) error {
+	am.lock.Lock()
+	defer am.lock.Unlock()
+
+	am.texts[userID] = input
+	return nil
 }

@@ -119,7 +119,7 @@ func (rs *RecordSession) Stop() {
 func (rs *RecordSession) FinalStop(id string) {
 	time.Sleep(2 * time.Second)
 
-	goapp.Log.Warn().Str("id", id).Msg("Final stopping transcription")	
+	goapp.Log.Warn().Str("id", id).Msg("Final stopping transcription")
 	rs.lock.Lock()
 	defer rs.lock.Unlock()
 
@@ -165,7 +165,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 		} else {
 			found := false
 			if rs.copy_command_segment < rs.Segment {
-				index := posAt(input, rs.lastCommand, [][]string{{"kopijuoti", "kopijuok"}, {"tekstą"}})
+				index := posAt(input, rs.lastCommand, [][][]string{{{"kopijuoti", "kopijuok"}, {"tekstą"}}})
 				if index >= 0 {
 					rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: index}
 
@@ -175,7 +175,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 				}
 			}
 			if !found && rs.select_all_command_segment < rs.Segment {
-				index := posAt(input, rs.lastCommand, [][]string{{"pažymėti", "pažymėk"}, {"visus"}})
+				index := posAt(input, rs.lastCommand, [][][]string{{{"pažymėti", "pažymėk"}, {"visus"}}})
 				if index >= 0 {
 					rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: index}
 
@@ -185,7 +185,9 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 				}
 			}
 			if !found && rs.stop_command_segment < rs.Segment {
-				index := posAt(input, rs.lastCommand, [][]string{{"stabdyti", "stabdyk"}, {"klausymą"}})
+				goapp.Log.Warn().Str("txt", getText(input)).Msg("Checking stop command")
+				index := posAt(input, rs.lastCommand, [][][]string{{{"stabdyti", "stabdyk", "baik"}, {"klausymą", "klausyti"}}, {{"baiklausyti", "baiklausyte"}}})
+				goapp.Log.Warn().Int("index", index).Msg("Checking stop command index")
 				if index >= 0 {
 					rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: index}
 
@@ -285,14 +287,15 @@ func clearWordsFrom(input *api.FullResult, i int) *api.FullResult {
 }
 
 func stopAtPos(input *api.FullResult, lastCommand *WordPos) int {
-	return posAt(input, lastCommand, [][]string{{"baigiu", "baigiau", "baigiame", "baigėme", "baigti", "baik"}, {"įrašinėti", "įrašą", "rašinėti", "rašyti", "rašymą", "įrašymą"}})
+	return posAt(input, lastCommand, [][][]string{{{"baigiu", "baigiau", "baigiame", "baigėme", "baigti", "baik", "stabdyk", "stabdyti"}, {"įrašinėti", "įrašą", "rašinėti", "rašyti", "rašymą", "įrašymą"}},
+		{{"baikrašyti", "baikrašytė"}}})
 }
 
 func startAtPos(input *api.FullResult, lastCommand *WordPos) int {
-	return posAt(input, lastCommand, [][]string{{"pradedu", "pradėti", "pradedame", "pradėk"}, {"įrašinėti", "įrašą", "rašinėti", "rašyti", "rašymą", "įrašymą"}})
+	return posAt(input, lastCommand, [][][]string{{{"pradedu", "pradėti", "pradedame", "pradėk"}, {"įrašinėti", "įrašą", "rašinėti", "rašyti", "rašymą", "įrašymą"}}})
 }
 
-func posAt(input *api.FullResult, lastCommand *WordPos, matches [][]string) int {
+func posAt(input *api.FullResult, lastCommand *WordPos, matches [][][]string) int {
 	if input == nil || len(input.Result.Hypotheses) == 0 {
 		return -1
 	}
@@ -311,19 +314,21 @@ func posAt(input *api.FullResult, lastCommand *WordPos, matches [][]string) int 
 	return posInWords(words, from, matches)
 }
 
-func posInWords(words []string, from int, matches [][]string) int {
+func posInWords(words []string, from int, matches [][][]string) int {
 	l := len(words)
-	lm := len(matches)
-	for i := from; i < l-lm+1; i++ {
-		matched := true
-		for j := 0; j < lm; j++ {
-			if !okStr(words[i+j], matches[j]) {
-				matched = false
-				break
+	for _, match := range matches {
+		lm := len(match)
+		for i := from; i < l-lm+1; i++ {
+			matched := true
+			for j := 0; j < lm; j++ {
+				if !okStr(words[i+j], match[j]) {
+					matched = false
+					break
+				}
 			}
-		}
-		if matched {
-			return i
+			if matched {
+				return i
+			}
 		}
 	}
 	return -1
