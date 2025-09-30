@@ -1,7 +1,7 @@
 #########################################################################################
 ## docker will invoke this file from .. dir in order to access code
 #########################################################################################
-FROM golang:1.25-alpine as builder
+FROM golang:1.25-alpine AS builder
 
 ARG BUILD_VERSION=0.1
 
@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     go build -o /go/bin/rt-wrapper -trimpath -ldflags "-s -w -X main.version=$BUILD_VERSION" cmd/main.go
 #####################################################################################
-FROM alpine:3.22 as runner
+FROM alpine:3.22 AS runner
 
 ARG BUILD_VERSION=0.1
 
