@@ -42,7 +42,7 @@ type TextManager interface {
 	SaveTexts(ctx context.Context, userID string, input *domain.Texts) error
 }
 
-const userHeader = "X-User-Info"
+const userHeader = "User-Info"
 
 // Data keeps data required for service work
 type Data struct {
