@@ -39,7 +39,39 @@ func TestCrypter_EncryptDecrypt(t *testing.T) {
 			}
 			if string(decrypted) != string(tt.data) {
 				t.Errorf("Decrypt() = %v, want %v", string(decrypted), string(tt.data))
-			}			
+			}
+		})
+	}
+}
+
+func TestNewCrypter(t *testing.T) {
+	tests := []struct {
+		name    string // description of this test case
+		key     string
+		wantErr bool
+	}{
+		{"valid 32", "12345678901234567890123456789012", false},
+		{"valid 24", "123456789012345678901234", true},
+		{"valid 16", "1234567890123456", true},
+		{"too short", "1234567890", true},
+		{"empty", "", true},
+		{"valid >32", "12345678901234567890123456789012345", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, gotErr := secure.NewCrypter(tt.key)
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("NewCrypter() failed: %v", gotErr)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("NewCrypter() returned nil")
+			}
+			if tt.wantErr {
+				t.Fatal("NewCrypter() succeeded unexpectedly")
+			}
 		})
 	}
 }

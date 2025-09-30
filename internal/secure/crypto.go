@@ -14,11 +14,11 @@ type Crypter struct {
 
 func NewCrypter(key string) (*Crypter, error) {
 	k := []byte(key)
-	k = k[:32]
 	l := len(k)
-	if l != 32 {
+	if l < 32 {
 		return nil, fmt.Errorf("key length must be >= 32 bytes, got %d", l)
 	}
+	k = k[:32]
 	return &Crypter{key: k}, nil
 }
 
