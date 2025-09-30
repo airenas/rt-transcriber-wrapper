@@ -99,7 +99,7 @@ func initRoutes(data *Data) *echo.Echo {
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{echo.GET, echo.POST, echo.OPTIONS},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-User-Info"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", userHeader},
 		AllowCredentials: true,
 	}))
 
@@ -306,7 +306,7 @@ type user struct {
 func extractUserFromHeader(header http.Header) (*user, error) {
 	encoded := header.Get(userHeader)
 	if encoded == "" {
-		return nil, errors.New("missing X-User-Info header")
+		return nil, fmt.Errorf("missing %s header", userHeader)
 	}
 	return extractUserTxt(encoded)
 }
