@@ -30,7 +30,7 @@ func main() {
 	data.DevMode = cfg.GetBool("devMode")
 	data.WSHandlerStatus = service.NewWSSimpleHandler(cfg.GetString("status.url"))
 
-	dataManager, err := db.NewRedisDataManager(cfg.GetString("redis.url"))
+	dataManager, err := db.NewRedisDataManager(cfg.GetString("redis.url"), cfg.GetString("redis.encryptionKey"))
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init redis")
 	}

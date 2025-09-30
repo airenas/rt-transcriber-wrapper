@@ -8,27 +8,35 @@ import (
 
 	"github.com/airenas/go-app/pkg/goapp"
 	"github.com/airenas/rt-transcriber-wrapper/internal/domain"
+	"github.com/airenas/rt-transcriber-wrapper/internal/secure"
 	"github.com/redis/go-redis/v9"
 )
 
 // RedisDataManager stores audio, user configs, and texts in Redis.
 type RedisDataManager struct {
-	client *redis.Client
-	ttl    time.Duration
+	client  *redis.Client
+	ttl     time.Duration
+	crypter *secure.Crypter
 }
 
 // NewRedisDataManager creates a new RedisDataManager with connection pooling.
-func NewRedisDataManager(connStr string) (*RedisDataManager, error) {
+func NewRedisDataManager(connStr string, encryptionKey string) (*RedisDataManager, error) {
 	opt, err := redis.ParseURL(connStr)
 	if err != nil {
 		return nil, fmt.Errorf("parse redis URL: %w", err)
 	}
-
+	goapp.Log.Info().Str("redis", opt.Addr).Int("db", opt.DB).Send()
 	rdb := redis.NewClient(opt)
 
+	crypter, err := secure.NewCrypter(encryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("create crypter: %w", err)
+	}
+
 	return &RedisDataManager{
-		client: rdb,
-		ttl:    time.Hour * 6,
+		client:  rdb,
+		ttl:     time.Hour * 6,
+		crypter: crypter,
 	}, nil
 }
 
@@ -52,9 +60,13 @@ func (r *RedisDataManager) SaveAudio(ctx context.Context, id string, chunks [][]
 	if err != nil {
 		return fmt.Errorf("convert to wav: %w", err)
 	}
+	encrypted, err := r.crypter.Encrypt(data)
+	if err != nil {
+		return fmt.Errorf("encrypt: %w", err)
+	}
 
 	key := r.keyAudio(id)
-	return r.client.Set(ctx, key, data, r.ttl).Err()
+	return r.client.Set(ctx, key, encrypted, r.ttl).Err()
 }
 
 // GetAudio retrieves WAV bytes from Redis
@@ -68,7 +80,11 @@ func (r *RedisDataManager) GetAudio(ctx context.Context, id string) ([]byte, err
 		}
 		return nil, err
 	}
-	return append([]byte(nil), b...), nil
+	decrypted, err := r.crypter.Decrypt(b)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt: %w", err)
+	}
+	return decrypted, nil
 }
 
 // SaveConfig stores user config in Redis as JSON
@@ -78,7 +94,11 @@ func (r *RedisDataManager) SaveConfig(ctx context.Context, user *domain.User) er
 	if err != nil {
 		return err
 	}
-	return r.client.Set(ctx, key, data, 0).Err()
+	encrypted, err := r.crypter.Encrypt(data)
+	if err != nil {
+		return fmt.Errorf("encrypt: %w", err)
+	}
+	return r.client.Set(ctx, key, encrypted, 0).Err()
 }
 
 // GetConfig retrieves user config from Redis
@@ -91,8 +111,12 @@ func (r *RedisDataManager) GetConfig(ctx context.Context, userID string) (*domai
 		}
 		return nil, fmt.Errorf("get config: %w", err)
 	}
+	decrypted, err := r.crypter.Decrypt(bs)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt: %w", err)
+	}
 	var u domain.User
-	if err := json.Unmarshal(bs, &u); err != nil {
+	if err := json.Unmarshal(decrypted, &u); err != nil {
 		return nil, err
 	}
 	return &u, nil
@@ -105,7 +129,11 @@ func (r *RedisDataManager) SaveTexts(ctx context.Context, userID string, input *
 	if err != nil {
 		return err
 	}
-	return r.client.Set(ctx, key, data, r.ttl).Err()
+	encrypted, err := r.crypter.Encrypt(data)
+	if err != nil {
+		return fmt.Errorf("encrypt: %w", err)
+	}
+	return r.client.Set(ctx, key, encrypted, r.ttl).Err()
 }
 
 // GetTexts retrieves Texts from Redis
@@ -118,8 +146,12 @@ func (r *RedisDataManager) GetTexts(ctx context.Context, userID string) (*domain
 		}
 		return nil, fmt.Errorf("get texts: %w", err)
 	}
+	decrypted, err := r.crypter.Decrypt(bs)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt: %w", err)
+	}
 	var t domain.Texts
-	if err := json.Unmarshal(bs, &t); err != nil {
+	if err := json.Unmarshal(decrypted, &t); err != nil {
 		return nil, err
 	}
 	return &t, nil

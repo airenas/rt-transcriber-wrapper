@@ -10,6 +10,7 @@ punctuator:
   url: http://localhost:8083/punctuation
 redis:
   url: redis://localhost:6379/0
+  encryptionKey: 01K6CZRXNCNZZ1HQHMVGGJAD1601K6CZ
 
 logger:
   level: debug
