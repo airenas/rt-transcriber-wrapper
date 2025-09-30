@@ -68,7 +68,7 @@ func NewMemoryDataManager() *MemoryDataManager {
 }
 
 func (am *MemoryDataManager) SaveAudio(id string, chunks [][]byte) error {
-	goapp.Log.Warn().Str("id", id).Msg("Save audio")
+	goapp.Log.Debug().Str("id", id).Msg("Save audio")
 	am.lock.Lock()
 	defer am.lock.Unlock()
 
@@ -81,7 +81,7 @@ func (am *MemoryDataManager) SaveAudio(id string, chunks [][]byte) error {
 }
 
 func (am *MemoryDataManager) GetAudio(id string) ([]byte, error) {
-	goapp.Log.Warn().Str("id", id).Msg("Getting audio")
+	goapp.Log.Debug().Str("id", id).Msg("Getting audio")
 	am.lock.RLock()
 	defer am.lock.RUnlock()
 	data, ok := am.data[id]

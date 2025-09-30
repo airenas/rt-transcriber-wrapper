@@ -179,7 +179,7 @@ func audioHandler(data *Data) echo.HandlerFunc {
 		if err != nil {
 			return c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 		}
-		goapp.Log.Warn().Str("id", id).Str("user", user.ID).Msg("Getting audio")
+		goapp.Log.Info().Str("id", id).Str("user", user.ID).Msg("Getting audio")
 
 		finalId := fmt.Sprintf("audio-%s-%s", user.ID, id)
 
@@ -198,7 +198,7 @@ func configHandler(data *Data) echo.HandlerFunc {
 		if err != nil {
 			return c.String(http.StatusUnauthorized, http.StatusText(http.StatusUnauthorized))
 		}
-		goapp.Log.Info().Str("id", user.ID).Msg("Getting config")
+		goapp.Log.Debug().Str("id", user.ID).Msg("Getting config")
 
 		data, err := data.ConfigManager.GetConfig(c.Request().Context(), user.ID)
 		if err != nil {
@@ -254,7 +254,7 @@ func txtSaveHandler(data *Data) echo.HandlerFunc {
 			goapp.Log.Error().Err(err).Msg("can't save texts")
 			return c.String(http.StatusInternalServerError, "failed to save texts")
 		}
-		goapp.Log.Info().Str("id", user.ID).Msg("saved txt")
+		goapp.Log.Debug().Str("id", user.ID).Msg("saved txt")
 		return c.String(http.StatusOK, "ok")
 	}
 }

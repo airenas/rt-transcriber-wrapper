@@ -91,7 +91,7 @@ func (rs *RecordSession) KeepAudio(msg []byte) {
 func (rs *RecordSession) Start(auto bool) {
 	rs.lock.Lock()
 	defer rs.lock.Unlock()
-	goapp.Log.Info().Bool("auto", auto).Msg("Starting transcription")
+	goapp.Log.Debug().Bool("auto", auto).Msg("Starting transcription")
 	rs.State = Transcribing
 	rs.Auto = auto
 	rs.Transcription = NewTranscriptionSession(rs.Segment, 0)
@@ -103,7 +103,9 @@ func (rs *RecordSession) Stop(ctx context.Context) {
 	defer rs.lock.Unlock()
 
 	if rs.audioKeeper != nil {
-		rs.SaveAudio(ctx)
+		if err := rs.SaveAudio(ctx); err != nil {
+			goapp.Log.Error().Err(err).Msg("can't save audio")
+		}
 		rs.audioKeeper = nil
 	}
 	if rs.State == Transcribing {
@@ -119,7 +121,7 @@ func (rs *RecordSession) Stop(ctx context.Context) {
 func (rs *RecordSession) FinalStop(id string) {
 	time.Sleep(2 * time.Second)
 
-	goapp.Log.Warn().Str("id", id).Msg("Final stopping transcription")
+	goapp.Log.Debug().Str("id", id).Msg("Final stopping transcription")
 	rs.lock.Lock()
 	defer rs.lock.Unlock()
 
@@ -144,7 +146,7 @@ func getText(input *api.FullResult) string {
 func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, handler Handler) ([]*api.FullResult, error) {
 	rs.lock.Lock()
 	defer rs.lock.Unlock()
-	goapp.Log.Warn().Int("segment", input.Segment).Str("txt", getText(input)).Str("state", rs.State.String()).Bool("final", input.Result.Final).
+	goapp.Log.Trace().Int("segment", input.Segment).Str("txt", getText(input)).Str("state", rs.State.String()).Bool("final", input.Result.Final).
 		Interface("last_command", rs.lastCommand).Send()
 	rs.Segment = input.Segment
 	lastCommand := rs.lastCommand
@@ -185,15 +187,15 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 				}
 			}
 			if !found && rs.stop_command_segment < rs.Segment {
-				goapp.Log.Warn().Str("txt", getText(input)).Msg("Checking stop command")
+				goapp.Log.Trace().Str("txt", getText(input)).Msg("Checking stop command")
 				index := posAt(input, rs.lastCommand, [][][]string{{{"stabdyti", "stabdyk", "baik"}, {"klausymą", "klausyti"}}, {{"baiklausyti", "baiklausyte"}}})
-				goapp.Log.Warn().Int("index", index).Msg("Checking stop command index")
+				goapp.Log.Trace().Int("index", index).Msg("Checking stop command index")
 				if index >= 0 {
 					rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: index}
 
 					res = append(res, &api.FullResult{Event: "STOP_LISTENING_COMMAND"})
 					rs.select_all_command_segment = rs.Segment
-					found = true
+					// found = true
 				}
 			}
 		}
@@ -203,7 +205,9 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 			rs.State = StoppingTranscription
 			rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: indexStop}
 			if rs.audioKeeper != nil {
-				rs.SaveAudio(ctx)
+				if err := rs.SaveAudio(ctx); err != nil {
+					goapp.Log.Error().Err(err).Msg("can't save audio")
+				}
 				rs.audioKeeper = nil
 			}
 			if rs.Transcription != nil {
