@@ -20,12 +20,12 @@ type RedisDataManager struct {
 }
 
 // NewRedisDataManager creates a new RedisDataManager with connection pooling.
-func NewRedisDataManager(connStr string, encryptionKey string) (*RedisDataManager, error) {
+func NewRedisDataManager(connStr string, encryptionKey string, ttl time.Duration) (*RedisDataManager, error) {
 	opt, err := redis.ParseURL(connStr)
 	if err != nil {
 		return nil, fmt.Errorf("parse redis URL: %w", err)
 	}
-	goapp.Log.Info().Str("redis", opt.Addr).Int("db", opt.DB).Send()
+	goapp.Log.Info().Str("redis", opt.Addr).Int("db", opt.DB).Dur("ttl", ttl).Send()
 	rdb := redis.NewClient(opt)
 
 	crypter, err := secure.NewCrypter(encryptionKey)
@@ -33,9 +33,13 @@ func NewRedisDataManager(connStr string, encryptionKey string) (*RedisDataManage
 		return nil, fmt.Errorf("create crypter: %w", err)
 	}
 
+	if ttl <= 5*time.Minute {
+		return nil, fmt.Errorf("TTL is set to a low value of %s, it should be at least 5 minutes", ttl)
+	}
+
 	return &RedisDataManager{
 		client:  rdb,
-		ttl:     time.Hour * 6,
+		ttl:     ttl,
 		crypter: crypter,
 	}, nil
 }
