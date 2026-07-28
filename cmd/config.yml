@@ -3,7 +3,7 @@ devMode: true
 status:
   maxWorkers: 10
 speech:
-  url: ws://localhost:8082/client/ws/speech
+  url: ws://localhost:6006/
 joiner:
   url: http://localhost:8081/invnorm_num
 punctuator:

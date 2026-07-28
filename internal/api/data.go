@@ -37,6 +37,20 @@ type FullResult struct {
 	TranscriptionID string         `json:"transcription-id,omitempty"`
 }
 
+type K2Result struct {
+	Text          string          `json:"text"`
+	Tokens        []string        `json:"tokens"`
+	Timestamps    []float64       `json:"timestamps"`
+	YsProbs       []float64       `json:"ys_probs"`
+	LmProbs       []float64       `json:"lm_probs"`
+	ContextScores []float64       `json:"context_scores"`
+	Segment       int             `json:"segment"`
+	Words         []WordAlignment `json:"words"`
+	StartTime     float64         `json:"start_time"`
+	IsFinal       bool            `json:"is_final"`
+	IsEOF         bool            `json:"is_eof"`
+}
+
 type EventMsg struct {
 	Event string `json:"event,omitempty"`
 }

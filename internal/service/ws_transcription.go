@@ -3,16 +3,20 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
 	"github.com/airenas/rt-transcriber-wrapper/internal/api"
 	"github.com/airenas/rt-transcriber-wrapper/internal/handlers"
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 type WsConn interface {
@@ -90,6 +94,7 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 		return conn.WriteMessage(websocket.TextMessage, []byte(msg))
 	}
 	session := handlers.NewRecordSession(kp.audioSaver, userID, writeFunc)
+	stopRequested := &atomic.Bool{}
 
 	wg.Add(2)
 
@@ -103,7 +108,7 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 			if input.t == websocket.BinaryMessage {
 				session.KeepAudio(input.msg)
 			}
-			out = append(out, input)
+			out = append(out, &data{t: websocket.BinaryMessage, msg: int16ToFloat32(input.msg)})
 			return out, in, nil
 		}
 
@@ -124,8 +129,14 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 			session.Stop(_ctx)
 			return out, in, nil
 		}
-
-		out = append(out, input)
+		if inp == "EOS" {
+			if stopRequested.CompareAndSwap(false, true) {
+				log.Ctx(ctx).Info().Msg("EOS received, closing connection after 1 sec")
+				// close connection after 1 sec to allow to send final result
+				time.AfterFunc(time.Second, cf)
+			}
+		}
+		// skip other msgs
 		return out, in, nil
 	}
 
@@ -189,12 +200,31 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 }
 
 func decode(data string) (*api.FullResult, error) {
-	res := &api.FullResult{}
-	err := json.NewDecoder(bytes.NewBufferString(data)).Decode(&res)
+	log.Debug().Str("msg", data).Msg("decode")
+	resNew := &api.K2Result{}
+	err := json.NewDecoder(bytes.NewBufferString(data)).Decode(&resNew)
 	if err != nil {
 		return nil, err
 	}
+	res := mapToFullResult(resNew)
 	return res, nil
+}
+
+func mapToFullResult(resNew *api.K2Result) *api.FullResult {
+	return &api.FullResult{
+		Status:       0,
+		Event:        "TRANSCRIPTION",
+		SegmentStart: resNew.StartTime,
+		Segment:      resNew.Segment,
+		Result: api.Result{
+			Hypotheses: []api.Hypothesis{
+				{
+					Transcript: resNew.Text,
+				},
+			},
+			Final: resNew.IsFinal,
+		},
+	}
 }
 
 func encode(inData *api.FullResult) (string, error) {
@@ -203,4 +233,30 @@ func encode(inData *api.FullResult) (string, error) {
 		return "", err
 	}
 	return b.String(), nil
+}
+
+func int16ToFloat32(data []byte) []byte {
+	// bytes -> int16 samples
+	samples := make([]int16, len(data)/2)
+
+	for i := 0; i < len(samples); i++ {
+		samples[i] = int16(binary.LittleEndian.Uint16(data[i*2:]))
+	}
+
+	// int16 -> float32
+	floats := make([]float32, len(samples))
+	for i, s := range samples {
+		floats[i] = float32(s) / 32768.0
+	}
+
+	// float32 -> bytes
+	out := make([]byte, len(floats)*4)
+	for i, f := range floats {
+		binary.LittleEndian.PutUint32(
+			out[i*4:],
+			math.Float32bits(f),
+		)
+	}
+
+	return out
 }
