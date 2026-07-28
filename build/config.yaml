@@ -1,6 +1,6 @@
 port: 8000
 status:
-  url: ws://localhost:8082/client/ws/status
+  maxWorkers: 10
 speech:
   url: ws://localhost:8082/client/ws/speech  
 joiner:

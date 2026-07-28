@@ -28,7 +28,13 @@ func main() {
 	data.Ctx = ctx
 	data.Port = cfg.GetInt("port")
 	data.DevMode = cfg.GetBool("devMode")
-	data.WSHandlerStatus = service.NewWSSimpleHandler(cfg.GetString("status.url"))
+
+	maxWorkers := cfg.GetInt("status.maxWorkers")
+	if maxWorkers < 1 {
+		goapp.Log.Fatal().Int("status.maxWorkers", maxWorkers).Msg("invalid max workers config")
+	}
+	workers := service.NewWorkerTracker(maxWorkers)
+	data.WSHandlerStatus = service.NewWSStatusHandler(workers)
 
 	dataManager, err := db.NewRedisDataManager(cfg.GetString("redis.url"), cfg.GetString("redis.encryptionKey"), cfg.GetDuration("redis.ttl"))
 	if err != nil {
@@ -38,7 +44,7 @@ func main() {
 	data.AudioManager = dataManager
 	data.ConfigManager = dataManager
 	data.TextManager = dataManager
-	trHandler := service.NewWSTranscriptionHandler(cfg.GetString("speech.url"), dataManager)
+	trHandler := service.NewWSTranscriptionHandler(cfg.GetString("speech.url"), dataManager, workers)
 	data.WSHandlerSpeech = trHandler
 	hList, err := handlers.NewListHandler()
 	if err != nil {

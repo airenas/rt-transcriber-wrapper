@@ -31,6 +31,7 @@ type WSTranscriptionHandler struct {
 	backendURL string
 	Middleware Handler
 	audioSaver AudioSaver
+	workers    *WorkerTracker
 }
 
 // type ConnState struct {
@@ -43,17 +44,25 @@ type AudioSaver interface {
 }
 
 // NewWSTranscriptionHandler creates handler
-func NewWSTranscriptionHandler(url string, audioSaver AudioSaver) *WSTranscriptionHandler {
+func NewWSTranscriptionHandler(url string, audioSaver AudioSaver, workers *WorkerTracker) *WSTranscriptionHandler {
 	res := &WSTranscriptionHandler{}
 	res.timeOut = time.Minute * 5
 	res.backendURL = url
 	res.audioSaver = audioSaver
+	res.workers = workers
 	goapp.Log.Info().Str("be url", url).Send()
 	return res
 }
 
 // HandleConnection loops until connection active and save connection with provided ID as key
 func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *websocket.Conn, req *http.Request, userID string) error {
+	if kp.workers == nil {
+		return fmt.Errorf("worker tracker is not configured")
+	}
+	if err := kp.workers.Reserve(ctx); err != nil {
+		return err
+	}
+	defer kp.workers.Release(context.Background())
 	query := req.URL.RawQuery
 	goapp.Log.Info().Str("query", query).Msg("got")
 

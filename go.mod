@@ -1,6 +1,6 @@
 module github.com/airenas/rt-transcriber-wrapper
 
-go 1.25
+go 1.26
 
 require (
 	github.com/airenas/go-app v1.0.25
