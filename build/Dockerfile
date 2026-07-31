@@ -1,7 +1,7 @@
 #########################################################################################
 ## docker will invoke this file from .. dir in order to access code
 #########################################################################################
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 ARG BUILD_VERSION=0.1
 
@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.version=$BUILD_VERSION \
       vendor="airenass@gmail.com" \
       version=$BUILD_VERSION \
       release=$BUILD_VERSION \
-      description="Wrapper for Kaldi GStreamer server allowing to add custom middleware, like punctuation, etc..."
+      description="Wrapper for Kaldi next gen streaming server allowing to add custom middleware, like punctuation, etc..."
 
 WORKDIR /app
 
