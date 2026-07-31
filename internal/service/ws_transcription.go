@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/airenas/go-app/pkg/goapp"
 	"github.com/airenas/rt-transcriber-wrapper/internal/api"
+	"github.com/airenas/rt-transcriber-wrapper/internal/domain"
 	"github.com/airenas/rt-transcriber-wrapper/internal/handlers"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
@@ -26,7 +28,7 @@ type WsConn interface {
 }
 
 type Handler interface {
-	Process(context.Context, *api.FullResult) (*api.FullResult, error)
+	Process(context.Context, *domain.K2Data) (*domain.K2Data, error)
 }
 
 // WSTranscriptionHandler implements connection management
@@ -140,6 +142,8 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 		return out, in, nil
 	}
 
+	sessionData := &domain.K2Data{}
+
 	passBackward := func(_ctx context.Context, input *data) (out []*data, in []*data, err error) {
 		if input.t != websocket.TextMessage {
 			out = append(out, input)
@@ -154,7 +158,9 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 			return out, in, nil
 		}
 
-		inpMsgs, err := session.Process(_ctx, inpData, kp.Middleware)
+		appendData(sessionData, inpData)
+
+		inpMsgs, err := session.Process(_ctx, sessionData, kp.Middleware)
 		if err != nil {
 			goapp.Log.Error().Err(err).Msg("session err")
 			out = append(out, input)
@@ -199,32 +205,74 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 	return nil
 }
 
-func decode(data string) (*api.FullResult, error) {
+func appendData(sessionData *domain.K2Data, inpData *domain.K2Words) {
+	sessionData.NewWords = inpData.Words
+	if len(sessionData.Words) == 0 {
+		sessionData.Words = inpData.Words
+		return
+	}
+	from := sessionData.FinalTo
+	wordFrom := sessionData.Words[from]
+	replace := false
+	for _, w := range inpData.Words {
+		if w.Timestamp >= wordFrom.Timestamp {
+			replace = true
+		}
+		if replace {
+			if from < len(sessionData.Words) {
+				sessionData.Words[from] = w
+			} else {
+				sessionData.Words = append(sessionData.Words, w)
+			}
+			from++
+		}
+	}
+}
+
+func decode(data string) (*domain.K2Words, error) {
 	log.Debug().Str("msg", data).Msg("decode")
 	resNew := &api.K2Result{}
 	err := json.NewDecoder(bytes.NewBufferString(data)).Decode(&resNew)
 	if err != nil {
 		return nil, err
 	}
-	res := mapToFullResult(resNew)
+	res, err := mapToDomain(resNew)
+	if err != nil {
+		return nil, err
+	}
 	return res, nil
 }
 
-func mapToFullResult(resNew *api.K2Result) *api.FullResult {
-	return &api.FullResult{
-		Status:       0,
-		Event:        "TRANSCRIPTION",
-		SegmentStart: resNew.StartTime,
-		Segment:      resNew.Segment,
-		Result: api.Result{
-			Hypotheses: []api.Hypothesis{
-				{
-					Transcript: resNew.Text,
-				},
-			},
-			Final: resNew.IsFinal,
-		},
+func mapToDomain(resNew *api.K2Result) (*domain.K2Words, error) {
+	res := &domain.K2Words{
+		Segment:   resNew.Segment,
+		StartTime: resNew.StartTime,
 	}
+	if len(resNew.Tokens) != len(resNew.Timestamps) {
+		return nil, fmt.Errorf("tokens and timestamps length mismatch")
+	}
+	newWord := true
+	for i, token := range resNew.Tokens {
+		if strings.HasPrefix(token, " ") || len(res.Words) == 0 {
+			newWord = true
+		}
+		token = strings.TrimSpace(token)
+		if len(token) == 0 {
+			continue
+		}
+		if newWord {
+			res.Words = append(res.Words, &domain.K2Word{
+				Text:       token,
+				Punctuated: "",
+				Timestamp:  resNew.Timestamps[i] + resNew.StartTime,
+				Segment:    resNew.Segment,
+			})
+			newWord = false
+		} else {
+			res.Words[len(res.Words)-1].Text += token
+		}
+	}
+	return res, nil
 }
 
 func encode(inData *api.FullResult) (string, error) {

@@ -9,11 +9,8 @@ func TestWorkerTrackerSnapshot(t *testing.T) {
 	tracker := NewWorkerTracker(3)
 	snapshot := tracker.Snapshot()
 
-	if snapshot.WorkersAvailable != 3 {
-		t.Fatalf("WorkersAvailable = %d, want 3", snapshot.WorkersAvailable)
-	}
-	if snapshot.RequestsProcessed != 0 {
-		t.Fatalf("RequestsProcessed = %d, want 0", snapshot.RequestsProcessed)
+	if snapshot.Available != 3 {
+		t.Fatalf("Available = %d, want 3", snapshot.Available)
 	}
 }
 
@@ -32,13 +29,11 @@ func TestWorkerTrackerReserveAndRelease(t *testing.T) {
 
 	tracker.Release(t.Context())
 	tracker.Release(t.Context())
+	tracker.Release(t.Context())
 
 	snapshot := tracker.Snapshot()
-	if snapshot.RequestsProcessed != 2 {
-		t.Fatalf("RequestsProcessed after release = %d, want 2", snapshot.RequestsProcessed)
-	}
-	if snapshot.WorkersAvailable != 2 {
-		t.Fatalf("WorkersAvailable after release = %d, want 2", snapshot.WorkersAvailable)
+	if snapshot.Available != 2 {
+		t.Fatalf("Available after release = %d, want 2", snapshot.Available)
 	}
 }
 
@@ -48,7 +43,7 @@ func TestWorkerTrackerSubscribeGetsUpdates(t *testing.T) {
 	defer cancel()
 
 	first := readSnapshot(t, updates)
-	if first.WorkersAvailable != 2 || first.RequestsProcessed != 0 {
+	if first.Available != 2 {
 		t.Fatalf("initial snapshot = %+v", first)
 	}
 
@@ -56,13 +51,13 @@ func TestWorkerTrackerSubscribeGetsUpdates(t *testing.T) {
 		t.Fatalf("Reserve() failed: %v", err)
 	}
 	second := readSnapshot(t, updates)
-	if second.WorkersAvailable != 1 || second.RequestsProcessed != 1 {
+	if second.Available != 1 {
 		t.Fatalf("reserve snapshot = %+v", second)
 	}
 
 	tracker.Release(t.Context())
 	third := readSnapshot(t, updates)
-	if third.WorkersAvailable != 2 || third.RequestsProcessed != 1 {
+	if third.Available != 2 {
 		t.Fatalf("release snapshot = %+v", third)
 	}
 }

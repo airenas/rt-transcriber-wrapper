@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/airenas/go-app/pkg/goapp"
-	"github.com/airenas/rt-transcriber-wrapper/internal/api"
+	"github.com/airenas/rt-transcriber-wrapper/internal/domain"
 	"github.com/airenas/rt-transcriber-wrapper/internal/utils"
+	"github.com/rs/zerolog/log"
 )
 
 type Handler interface {
-	Process(context.Context, *api.FullResult) (*api.FullResult, error)
+	Process(context.Context, *domain.K2Data) (*domain.K2Data, error)
 }
 
 // List passes data to list of middleware
@@ -23,19 +23,18 @@ func NewListHandler() (*ListHandler, error) {
 	return res, nil
 }
 
-func (sp *ListHandler) Process(ctx context.Context, data *api.FullResult) (*api.FullResult, error) {
+func (sp *ListHandler) Process(ctx context.Context, data *domain.K2Data) (*domain.K2Data, error) {
 	defer utils.MeasureTime("process", time.Now())
 	dataCopy := data
 	for i, h := range sp.hadlers {
-		goapp.Log.Debug().Int("handler", i).Msg("Processing")
+		log.Ctx(ctx).Trace().Int("handler", i).Msg("Processing")
 		if dataNew, err := h.Process(ctx, dataCopy); err != nil {
-			goapp.Log.Error().Err(err).Msg("Can't process")
+			log.Ctx(ctx).Error().Err(err).Msg("Can't process")
 		} else {
 			dataCopy = dataNew
 		}
-		goapp.Log.Debug().Int("handler", i).Msg("Finished")
+		log.Ctx(ctx).Trace().Int("handler", i).Msg("Finished")
 	}
-	dataCopy.Event = "TRANSCRIPTION"
 	return dataCopy, nil
 }
 

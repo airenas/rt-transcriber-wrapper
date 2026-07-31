@@ -6,8 +6,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/airenas/go-app/pkg/goapp"
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 type data struct {
@@ -34,37 +34,37 @@ loop:
 		var ok bool
 		select {
 		case <-prData.closeCtx.Done():
-			goapp.Log.Info().Msg("context canceled")
+			log.Ctx(ctx).Info().Msg("context canceled")
 			break loop
 		case d, ok = <-readCh:
-			goapp.Log.Debug().Bool("forward", prData.forward).Int("type", d.t).Send()
+			log.Ctx(ctx).Trace().Bool("forward", prData.forward).Int("type", d.t).Send()
 			if d.t == websocket.TextMessage {
-				goapp.Log.Trace().Str("msg", string(d.msg)).Send()
+				log.Ctx(ctx).Trace().Str("msg", string(d.msg)).Send()
 			}
 			if !ok {
-				goapp.Log.Info().Msg("channel closed")
+				log.Ctx(ctx).Info().Msg("channel closed")
 				break loop
 			}
 			outs, ins, err := prData.processFunc(ctx, &d)
 			if err != nil {
-				goapp.Log.Error().Err(err).Msg("process error")
+				log.Ctx(ctx).Error().Err(err).Msg("process error")
 				break loop
 			}
 			for _, out := range outs {
 				if err := prData.out.WriteMessage(out.t, out.msg); err != nil {
-					goapp.Log.Error().Err(err).Msg("write error")
+					log.Ctx(ctx).Error().Err(err).Msg("write error")
 					break loop
 				}
 			}
 			for _, in := range ins {
 				if err := prData.in.WriteMessage(in.t, in.msg); err != nil {
-					goapp.Log.Error().Err(err).Msg("write error")
+					log.Ctx(ctx).Error().Err(err).Msg("write error")
 					break loop
 				}
 			}
 
 		}
-		goapp.Log.Debug().Bool("forward", prData.forward).Msg("proxy finished")
+		log.Ctx(ctx).Trace().Bool("forward", prData.forward).Msg("proxy finished")
 	}
 }
 
@@ -72,17 +72,17 @@ func readWebSocket(ctx context.Context, in *websocket.Conn) <-chan data {
 	resCh := make(chan data)
 	go func() {
 		defer close(resCh)
-		defer goapp.Log.Debug().Msg("read routine ended")
+		defer log.Ctx(ctx).Debug().Msg("read routine ended")
 		for {
-			goapp.Log.Debug().Msg("handleConnection")
+			log.Ctx(ctx).Trace().Msg("handleConnection")
 			mType, message, err := in.ReadMessage()
 			if err != nil {
 				if websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) ||
 					errors.Is(err, net.ErrClosed) {
-					goapp.Log.Info().Msg("connection closed")
+					log.Ctx(ctx).Info().Msg("connection closed")
 					return
 				}
-				goapp.Log.Error().Err(err).Send()
+				log.Ctx(ctx).Error().Err(err).Send()
 				return
 			}
 			msg := data{t: mType, msg: message}

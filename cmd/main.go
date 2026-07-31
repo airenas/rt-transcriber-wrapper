@@ -12,10 +12,14 @@ import (
 	"github.com/airenas/rt-transcriber-wrapper/internal/handlers"
 	"github.com/airenas/rt-transcriber-wrapper/internal/service"
 	"github.com/labstack/gommon/color"
+	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 )
 
 func main() {
 	goapp.StartWithDefault()
+	log.Logger = goapp.Log
+	zerolog.DefaultContextLogger = &goapp.Log
 
 	printBanner()
 
@@ -51,21 +55,21 @@ func main() {
 		goapp.Log.Fatal().Err(err).Msg("can't init list handler")
 	}
 
-	cleaner, err := handlers.NewCleaner()
-	if err != nil {
-		goapp.Log.Fatal().Err(err).Msg("can't init cleaner")
-	}
-	joiner, err := handlers.NewJoiner(cfg.GetString("joiner.url"))
-	if err != nil {
-		goapp.Log.Fatal().Err(err).Msg("can't init joiner")
-	}
+	// cleaner, err := handlers.NewCleaner()
+	// if err != nil {
+	// 	goapp.Log.Fatal().Err(err).Msg("can't init cleaner")
+	// }
+	// joiner, err := handlers.NewJoiner(cfg.GetString("joiner.url"))
+	// if err != nil {
+	// 	goapp.Log.Fatal().Err(err).Msg("can't init joiner")
+	// }
 	punctuator, err := handlers.NewPunctuator(cfg.GetString("punctuator.url"))
 	if err != nil {
 		goapp.Log.Fatal().Err(err).Msg("can't init punctuator")
 	}
 
-	hList.Add(cleaner)
-	hList.Add(joiner)
+	// hList.Add(cleaner)
+	// hList.Add(joiner)
 	hList.Add(punctuator)
 	trHandler.Middleware = hList
 

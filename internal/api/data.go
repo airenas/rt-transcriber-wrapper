@@ -45,7 +45,6 @@ type K2Result struct {
 	LmProbs       []float64       `json:"lm_probs"`
 	ContextScores []float64       `json:"context_scores"`
 	Segment       int             `json:"segment"`
-	Words         []WordAlignment `json:"words"`
 	StartTime     float64         `json:"start_time"`
 	IsFinal       bool            `json:"is_final"`
 	IsEOF         bool            `json:"is_eof"`

@@ -84,4 +84,3 @@ func (kp *WSStatusHandler) HandleConnection(ctx context.Context, conn *websocket
 		}
 	}
 }
-

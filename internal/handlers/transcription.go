@@ -10,6 +10,7 @@ import (
 
 	"github.com/airenas/go-app/pkg/goapp"
 	"github.com/airenas/rt-transcriber-wrapper/internal/api"
+	"github.com/airenas/rt-transcriber-wrapper/internal/domain"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -136,17 +137,24 @@ func (rs *RecordSession) FinalStop(id string) {
 	}
 }
 
-func getText(input *api.FullResult) string {
-	if input == nil || len(input.Result.Hypotheses) == 0 {
+func getText(input []*domain.K2Word) string {
+	res := strings.Builder{}
+	if input == nil || len(input) == 0 {
 		return ""
 	}
-	return input.Result.Hypotheses[0].Transcript
+	for _, w := range input {
+		if res.Len() > 0 {
+			res.WriteString(" ")
+		}
+		res.WriteString(w.Text)
+	}
+	return res.String()
 }
 
-func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, handler Handler) ([]*api.FullResult, error) {
+func (rs *RecordSession) Process(ctx context.Context, input *domain.K2Data, handler Handler) ([]*api.FullResult, error) {
 	rs.lock.Lock()
 	defer rs.lock.Unlock()
-	goapp.Log.Trace().Int("segment", input.Segment).Str("txt", getText(input)).Str("state", rs.State.String()).Bool("final", input.Result.Final).
+	goapp.Log.Trace().Int("segment", input.Segment).Str("txt", getText(input.NewWords)).Str("state", rs.State.String()).
 		Interface("last_command", rs.lastCommand).Send()
 	rs.Segment = input.Segment
 	lastCommand := rs.lastCommand
@@ -157,7 +165,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 	res := []*api.FullResult{}
 
 	if rs.State == Listening && rs.Auto {
-		indexStart := startAtPos(input, lastCommand)
+		indexStart := startAtPos(input.NewWords, lastCommand)
 		if indexStart >= 0 {
 			rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: indexStart}
 			rs.State = Transcribing
@@ -167,7 +175,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 		} else {
 			found := false
 			if rs.copy_command_segment < rs.Segment {
-				index := posAt(input, rs.lastCommand, [][][]string{{{"kopijuoti", "kopijuok"}, {"tekstą"}}})
+				index := posAt(input.NewWords, rs.lastCommand, [][][]string{{{"kopijuoti", "kopijuok"}, {"tekstą"}}})
 				if index >= 0 {
 					rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: index}
 
@@ -177,7 +185,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 				}
 			}
 			if !found && rs.select_all_command_segment < rs.Segment {
-				index := posAt(input, rs.lastCommand, [][][]string{{{"pažymėti", "pažymėk"}, {"visus"}}})
+				index := posAt(input.NewWords, rs.lastCommand, [][][]string{{{"pažymėti", "pažymėk"}, {"visus"}}})
 				if index >= 0 {
 					rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: index}
 
@@ -187,8 +195,8 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 				}
 			}
 			if !found && rs.stop_command_segment < rs.Segment {
-				goapp.Log.Trace().Str("txt", getText(input)).Msg("Checking stop command")
-				index := posAt(input, rs.lastCommand, [][][]string{{{"stabdyti", "stabdyk", "baik"}, {"klausymą", "klausyti"}}, {{"baiklausyti", "baiklausyte"}}})
+				goapp.Log.Trace().Str("txt", getText(input.NewWords)).Msg("Checking stop command")
+				index := posAt(input.NewWords, rs.lastCommand, [][][]string{{{"stabdyti", "stabdyk", "baik"}, {"klausymą", "klausyti"}}, {{"baiklausyti", "baiklausyte"}}})
 				goapp.Log.Trace().Int("index", index).Msg("Checking stop command index")
 				if index >= 0 {
 					rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: index}
@@ -200,7 +208,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 			}
 		}
 	} else if rs.State == Transcribing && rs.Auto {
-		indexStop := stopAtPos(input, lastCommand)
+		indexStop := stopAtPos(input.NewWords, lastCommand)
 		if indexStop >= 0 {
 			rs.State = StoppingTranscription
 			rs.lastCommand = &WordPos{Segment: rs.Segment, WordIndex: indexStop}
@@ -220,7 +228,7 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 	}
 
 	nextState := rs.State
-	if rs.State == StoppingTranscription && (input.Result.Final || rs.Transcription != nil && rs.Transcription.stoppingAt.Add(time.Second*2).After(time.Now())) {
+	if rs.State == StoppingTranscription && (rs.Transcription != nil && rs.Transcription.stoppingAt.Add(time.Second*2).After(time.Now())) {
 		nextState = Listening
 		res = append(res, &api.FullResult{Event: api.EventStop})
 
@@ -229,13 +237,13 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 		return res, nil
 	}
 	if rs.Transcription != nil && rs.Transcription.StartSegment == rs.Segment && rs.Auto {
-		indexStart := startAtPos(input, rs.Transcription.startPos)
+		indexStart := startAtPos(input.NewWords, rs.Transcription.startPos)
 		if indexStart >= 0 {
 			input = clearWordsFrom(input, indexStart+2)
 		}
 	}
 	if rs.Transcription != nil && rs.Transcription.EndSegment == rs.Segment && rs.Auto {
-		indexStop := stopAtPos(input, lastCommand)
+		indexStop := stopAtPos(input.NewWords, lastCommand)
 		if indexStop >= 0 {
 			input = clearWordsTo(input, indexStop)
 		}
@@ -245,74 +253,105 @@ func (rs *RecordSession) Process(ctx context.Context, input *api.FullResult, han
 	if err != nil {
 		return nil, err
 	}
-	res = append(res, inputProcessed)
+	newFinal := newFinal(inputProcessed)
+	if newFinal > inputProcessed.FinalTo {
+		out := mapToRes(inputProcessed, inputProcessed.FinalTo, newFinal, true)
+		res = append(res, out)
+		inputProcessed.FinalTo = newFinal
+	}
+	out := mapToRes(inputProcessed, inputProcessed.FinalTo, newFinal, false)
+	res = append(res, out)
 	rs.State = nextState
 	return res, nil
 }
 
-func clearWordsTo(input *api.FullResult, indexStop int) *api.FullResult {
-	if !input.Result.Final {
-		words := strings.Split(input.Result.Hypotheses[0].Transcript, " ")
-		if indexStop < len(words) {
-			words = words[:indexStop]
+func mapToRes(inputProcessed *domain.K2Data, from, to int, final bool) *api.FullResult {
+	res :=
+		&api.FullResult{
+			Event:   "TRANSCRIPTION",
+			Segment: inputProcessed.Segment,
+			Result: api.Result{
+				Hypotheses: []api.Hypothesis{
+					{Transcript: getTextPunctuated(inputProcessed.Words[from:to])},
+				},
+				Final: final,
+			},
 		}
-		input.Result.Hypotheses[0].Transcript = strings.Join(words, " ")
-	} else {
-		if indexStop < len(input.Result.Hypotheses[0].WordAlignment) {
-			input.Result.Hypotheses[0].WordAlignment = input.Result.Hypotheses[0].WordAlignment[:indexStop]
+	return res
+}
+
+func getTextPunctuated(k2Word []*domain.K2Word) string {
+	res := strings.Builder{}
+	for _, w := range k2Word {
+		if w.Punctuated != "" {
+			if res.Len() > 0 {
+				res.WriteString(" ")
+			}
+			res.WriteString(w.Punctuated)
 		}
-		var words []string
-		for _, wa := range input.Result.Hypotheses[0].WordAlignment {
-			words = append(words, wa.Word)
+	}
+	return res.String()
+}
+
+func newFinal(inputProcessed *domain.K2Data) int {
+	f := inputProcessed.FinalTo
+	l := len(inputProcessed.Words)
+	for i := f; i < l; i++ {
+		if l-i > 40 {
+			f = i
+		} else if l-i < 20 { // less than twenty words left, we can stop
+			break
+		} else {
+			if inputProcessed.Words[i].SentenceEnd {
+				f = i
+				break
+			}
 		}
-		input.Result.Hypotheses[0].Transcript = strings.Join(words, " ")
+	}
+	return f
+}
+
+func clearWordsTo(input *domain.K2Data, indexStop int) *domain.K2Data {
+	ln := len(input.NewWords)
+	l := len(input.Words)
+	if indexStop < len(input.Words) {
+		input.NewWords = input.NewWords[:indexStop]
+		input.Words = input.Words[:ln-l+indexStop]
 	}
 	return input
 }
 
-func clearWordsFrom(input *api.FullResult, i int) *api.FullResult {
-	if !input.Result.Final {
-		words := strings.Split(input.Result.Hypotheses[0].Transcript, " ")
-		if i <= len(words) {
-			words = words[i:]
-		}
-		input.Result.Hypotheses[0].Transcript = strings.Join(words, " ")
-	} else {
-		if i <= len(input.Result.Hypotheses[0].WordAlignment) {
-			input.Result.Hypotheses[0].WordAlignment = input.Result.Hypotheses[0].WordAlignment[i:]
-		}
-		var words []string
-		for _, wa := range input.Result.Hypotheses[0].WordAlignment {
-			words = append(words, wa.Word)
-		}
-		input.Result.Hypotheses[0].Transcript = strings.Join(words, " ")
-	}
-	return input
+func clearWordsFrom(input *domain.K2Data, i int) *domain.K2Data {
+	ln := len(input.NewWords)
+	l := len(input.Words)
+	res := input
+	res.NewWords = res.NewWords[i:]
+	cpw := res.Words
+	res.Words = res.Words[:ln-l]
+	res.Words = append(res.Words, cpw[ln-l+i:]...)
+	return res
 }
 
-func stopAtPos(input *api.FullResult, lastCommand *WordPos) int {
+func stopAtPos(input []*domain.K2Word, lastCommand *WordPos) int {
 	return posAt(input, lastCommand, [][][]string{{{"baigiu", "baigiau", "baigiame", "baigėme", "baigti", "baik", "stabdyk", "stabdyti"}, {"įrašinėti", "įrašą", "rašinėti", "rašyti", "rašymą", "įrašymą"}},
 		{{"baikrašyti", "baikrašytė"}}})
 }
 
-func startAtPos(input *api.FullResult, lastCommand *WordPos) int {
+func startAtPos(input []*domain.K2Word, lastCommand *WordPos) int {
 	return posAt(input, lastCommand, [][][]string{{{"pradedu", "pradėti", "pradedame", "pradėk"}, {"įrašinėti", "įrašą", "rašinėti", "rašyti", "rašymą", "įrašymą"}}})
 }
 
-func posAt(input *api.FullResult, lastCommand *WordPos, matches [][][]string) int {
-	if input == nil || len(input.Result.Hypotheses) == 0 {
+func posAt(input []*domain.K2Word, lastCommand *WordPos, matches [][][]string) int {
+	if len(input) == 0 {
 		return -1
 	}
 	var words []string
-	if !input.Result.Final {
-		words = strings.Split(strings.ToLower(input.Result.Hypotheses[0].Transcript), " ")
-	} else {
-		for _, wa := range input.Result.Hypotheses[0].WordAlignment {
-			words = append(words, strings.ToLower(wa.Word))
-		}
+	words = make([]string, 0, len(input))
+	for _, w := range input {
+		words = append(words, strings.ToLower(w.Text))
 	}
 	from := 0
-	if lastCommand.Segment == input.Segment {
+	if lastCommand.Segment == input[0].Segment {
 		from = lastCommand.WordIndex
 	}
 	return posInWords(words, from, matches)

@@ -1,11 +1,6 @@
 port: 8000
 status:
   maxWorkers: 10
-speech:
-  url: ws://localhost:8082/client/ws/speech  
-joiner:
-  url: http://localhost:3003/invnorm_num
-
 logger:
     level: INFO 
     # out: console 

@@ -11,17 +11,14 @@ import (
 var ErrNoWorkersAvailable = errors.New("no workers available")
 
 type WorkerSnapshot struct {
-	RequestsProcessed int64 `json:"num_requests_processed"`
-	WorkersAvailable  int   `json:"num_workers_available"`
+	Available int `json:"num_workers_available"`
 }
 
 // WorkerTracker keeps worker usage state and broadcasts changes to subscribers.
 type WorkerTracker struct {
-	mu           sync.RWMutex
-	maxWorkers   int
-	usedWorkers  int
-	requestCount int64
-
+	mu          sync.RWMutex
+	maxWorkers  int
+	usedWorkers int
 	nextSubID   uint64
 	subscribers map[uint64]chan WorkerSnapshot
 }
@@ -37,14 +34,13 @@ func NewWorkerTracker(maxWorkers int) *WorkerTracker {
 }
 
 func (wt *WorkerTracker) Reserve(ctx context.Context) error {
-	log.Ctx(ctx).Debug().Int("max_workers", wt.maxWorkers).Int("used_workers", wt.usedWorkers).Msg("Reserving worker")
+	log.Ctx(ctx).Debug().Msg("reserving worker")
 	wt.mu.Lock()
 	if wt.usedWorkers >= wt.maxWorkers {
 		wt.mu.Unlock()
 		return ErrNoWorkersAvailable
 	}
 	wt.usedWorkers++
-	wt.requestCount++
 	snapshot := wt.snapshotLocked()
 	subs := wt.copySubscribersLocked()
 	wt.mu.Unlock()
@@ -53,7 +49,7 @@ func (wt *WorkerTracker) Reserve(ctx context.Context) error {
 }
 
 func (wt *WorkerTracker) Release(ctx context.Context) {
-	log.Ctx(ctx).Debug().Int("max_workers", wt.maxWorkers).Int("used_workers", wt.usedWorkers).Msg("Releasing worker")
+	log.Ctx(ctx).Debug().Msg("releasing worker")
 	wt.mu.Lock()
 	if wt.usedWorkers == 0 {
 		wt.mu.Unlock()
@@ -73,7 +69,7 @@ func (wt *WorkerTracker) Snapshot() WorkerSnapshot {
 }
 
 func (wt *WorkerTracker) Subscribe(ctx context.Context) (<-chan WorkerSnapshot, func()) {
-	log.Ctx(ctx).Debug().Msg("Subscribing to worker tracker")
+	log.Ctx(ctx).Debug().Msg("subscribing to worker tracker")
 	wt.mu.Lock()
 	defer wt.mu.Unlock()
 
@@ -101,8 +97,7 @@ func (wt *WorkerTracker) Subscribe(ctx context.Context) (<-chan WorkerSnapshot, 
 
 func (wt *WorkerTracker) snapshotLocked() WorkerSnapshot {
 	return WorkerSnapshot{
-		RequestsProcessed: wt.requestCount,
-		WorkersAvailable:  wt.maxWorkers - wt.usedWorkers,
+		Available: wt.maxWorkers - wt.usedWorkers,
 	}
 }
 
