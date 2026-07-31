@@ -227,6 +227,10 @@ func appendData(sessionData *domain.K2Data, inpData *domain.K2Words) {
 			break
 		}
 	}
+	// check the last
+	if from == len(sessionData.Words)-1 && sessionData.Words[from].Timestamp < newFrom {
+		from++
+	}
 
 	for _, w := range inpData.Words {
 		if from < len(sessionData.Words) {
