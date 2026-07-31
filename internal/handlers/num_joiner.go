@@ -36,12 +36,12 @@ func NewJoiner(getURL string) (*Joiner, error) {
 
 func (sp *Joiner) Process(ctx context.Context, data *api.FullResult) (*api.FullResult, error) {
 	defer utils.MeasureTime("joiner", time.Now())
-	if len(data.Result.Hypotheses) > 0 {
-		newText, err := sp.transform(ctx, data.Result.Hypotheses[0].Transcript)
+	if data.Result != nil && len(data.Result.Text) > 0 {
+		newText, err := sp.transform(ctx, data.Result.Text)
 		if err != nil {
 			return nil, err
 		}
-		data.Result.Hypotheses[0].Transcript = newText
+		data.Result.Text = newText
 	}
 	return data, nil
 }

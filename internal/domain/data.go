@@ -15,10 +15,12 @@ type K2Words struct {
 }
 
 type K2Data struct {
-	Words       []*K2Word
-	NewWords    []*K2Word
-	Segment     int
-	StartTime   float64
-	FinalTo     int
-	LastSegment int
+	Words            []*K2Word
+	NewWords         []*K2Word
+	StartTime        float64
+	FinalTo          int // index of last word that is final in Words
+	FinalSegmentID   int
+	CurrentSegmentID int
+
+	LastAppendFromIndex int
 }

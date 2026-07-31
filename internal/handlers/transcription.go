@@ -154,9 +154,9 @@ func getText(input []*domain.K2Word) string {
 func (rs *RecordSession) Process(ctx context.Context, input *domain.K2Data, handler Handler) ([]*api.FullResult, error) {
 	rs.lock.Lock()
 	defer rs.lock.Unlock()
-	goapp.Log.Trace().Int("segment", input.Segment).Str("txt", getText(input.NewWords)).Str("state", rs.State.String()).
+	goapp.Log.Trace().Int("segment", input.CurrentSegmentID).Str("txt", getText(input.NewWords)).Str("state", rs.State.String()).
 		Interface("last_command", rs.lastCommand).Send()
-	rs.Segment = input.Segment
+	rs.Segment = input.CurrentSegmentID
 	lastCommand := rs.lastCommand
 
 	if rs.State != Transcribing && !rs.Auto {
@@ -255,28 +255,31 @@ func (rs *RecordSession) Process(ctx context.Context, input *domain.K2Data, hand
 	}
 	newFinal := newFinal(inputProcessed)
 	if newFinal > inputProcessed.FinalTo {
+		inputProcessed.FinalSegmentID = inputProcessed.CurrentSegmentID
+		inputProcessed.CurrentSegmentID = inputProcessed.CurrentSegmentID + 1
 		out := mapToRes(inputProcessed, inputProcessed.FinalTo, newFinal, true)
 		res = append(res, out)
 		inputProcessed.FinalTo = newFinal
 	}
-	out := mapToRes(inputProcessed, inputProcessed.FinalTo, newFinal, false)
+	out := mapToRes(inputProcessed, newFinal, len(inputProcessed.Words), false)
 	res = append(res, out)
 	rs.State = nextState
 	return res, nil
 }
 
-func mapToRes(inputProcessed *domain.K2Data, from, to int, final bool) *api.FullResult {
+func mapToRes(input *domain.K2Data, from, to int, final bool) *api.FullResult {
 	res :=
 		&api.FullResult{
-			Event:   "TRANSCRIPTION",
-			Segment: inputProcessed.Segment,
-			Result: api.Result{
-				Hypotheses: []api.Hypothesis{
-					{Transcript: getTextPunctuated(inputProcessed.Words[from:to])},
-				},
-				Final: final,
+			Event: "TRANSCRIPTION",
+			Result: &api.Result{
+				Text:    getTextPunctuated(input.Words[from:to]),
+				IsFinal: final,
 			},
 		}
+	res.Result.Segment = input.CurrentSegmentID
+	if final {
+		res.Result.Segment = input.FinalSegmentID
+	}
 	return res
 }
 
@@ -296,16 +299,12 @@ func getTextPunctuated(k2Word []*domain.K2Word) string {
 func newFinal(inputProcessed *domain.K2Data) int {
 	f := inputProcessed.FinalTo
 	l := len(inputProcessed.Words)
-	for i := f; i < l; i++ {
-		if l-i > 40 {
+	for i := f + 1; i < l; i++ {
+		if inputProcessed.Words[i].SentenceEnd {
 			f = i
-		} else if l-i < 20 { // less than twenty words left, we can stop
+		}
+		if l-f < 20 {
 			break
-		} else {
-			if inputProcessed.Words[i].SentenceEnd {
-				f = i
-				break
-			}
 		}
 	}
 	return f

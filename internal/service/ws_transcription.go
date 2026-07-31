@@ -207,25 +207,34 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 
 func appendData(sessionData *domain.K2Data, inpData *domain.K2Words) {
 	sessionData.NewWords = inpData.Words
+	sessionData.StartTime = inpData.StartTime
 	if len(sessionData.Words) == 0 {
 		sessionData.Words = inpData.Words
 		return
 	}
-	from := sessionData.FinalTo
-	wordFrom := sessionData.Words[from]
-	replace := false
-	for _, w := range inpData.Words {
-		if w.Timestamp >= wordFrom.Timestamp {
-			replace = true
-		}
-		if replace {
-			if from < len(sessionData.Words) {
-				sessionData.Words[from] = w
-			} else {
-				sessionData.Words = append(sessionData.Words, w)
+	if len(inpData.Words) == 0 {
+		return
+	}
+	newFrom := inpData.Words[0].Timestamp
+	from := sessionData.LastAppendFromIndex
+	for i := from; i < len(sessionData.Words); i++ {
+		from = i
+		if sessionData.Words[i].Timestamp >= newFrom {
+			if sessionData.LastAppendFromIndex != from {
+				log.Info().Int("from", from).Int("last", sessionData.LastAppendFromIndex).Msg("append from")
 			}
-			from++
+			sessionData.LastAppendFromIndex = from
+			break
 		}
+	}
+
+	for _, w := range inpData.Words {
+		if from < len(sessionData.Words) {
+			sessionData.Words[from] = w
+		} else {
+			sessionData.Words = append(sessionData.Words, w)
+		}
+		from++
 	}
 }
 

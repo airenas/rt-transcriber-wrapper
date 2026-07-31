@@ -88,7 +88,7 @@ func calculateFrom(data *domain.K2Data) int {
 		return 0
 	}
 	sentences := 0
-	for i := data.FinalTo - 1; i >= 0; i-- {
+	for i := data.FinalTo - 2; i >= 0; i-- {
 		if data.Words[i].SentenceEnd {
 			sentences++
 			if data.FinalTo-i > 20 && sentences >= 2 {
