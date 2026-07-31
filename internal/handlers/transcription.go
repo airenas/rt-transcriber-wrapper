@@ -315,7 +315,7 @@ func clearWordsTo(input *domain.K2Data, indexStop int) *domain.K2Data {
 	l := len(input.Words)
 	if indexStop < len(input.Words) {
 		input.NewWords = input.NewWords[:indexStop]
-		input.Words = input.Words[:ln-l+indexStop]
+		input.Words = input.Words[:l-ln+indexStop]
 	}
 	return input
 }
@@ -326,8 +326,8 @@ func clearWordsFrom(input *domain.K2Data, i int) *domain.K2Data {
 	res := input
 	res.NewWords = res.NewWords[i:]
 	cpw := res.Words
-	res.Words = res.Words[:ln-l]
-	res.Words = append(res.Words, cpw[ln-l+i:]...)
+	res.Words = res.Words[:l-ln]
+	res.Words = append(res.Words, cpw[l-ln+i:]...)
 	return res
 }
 
