@@ -139,7 +139,7 @@ func (rs *RecordSession) FinalStop(id string) {
 
 func getText(input []*domain.K2Word) string {
 	res := strings.Builder{}
-	if input == nil || len(input) == 0 {
+	if len(input) == 0 {
 		return ""
 	}
 	for _, w := range input {
