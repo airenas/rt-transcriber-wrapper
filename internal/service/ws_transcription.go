@@ -105,7 +105,12 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 		cf()
 	}
 
+	counter := int64(0)
+	counterBack := int64(0)
+
 	passForward := func(_ctx context.Context, input *data) (out []*data, in []*data, err error) {
+		counter++
+		log.Ctx(ctx).Trace().Int("len", len(input.msg)).Int64("counter", counter).Msg("passForward")
 		if input.t != websocket.TextMessage {
 			if input.t == websocket.BinaryMessage {
 				session.KeepAudio(input.msg)
@@ -145,6 +150,8 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 	sessionData := &domain.K2Data{}
 
 	passBackward := func(_ctx context.Context, input *data) (out []*data, in []*data, err error) {
+		counterBack++
+		log.Ctx(ctx).Trace().Int("len", len(input.msg)).Int64("counterBack", counterBack).Msg("passBackward")
 		if input.t != websocket.TextMessage {
 			out = append(out, input)
 			return out, in, nil
@@ -175,6 +182,7 @@ func (kp *WSTranscriptionHandler) HandleConnection(ctx context.Context, conn *we
 			}
 			out = append(out, &data{t: websocket.TextMessage, msg: []byte(res)})
 		}
+		log.Ctx(ctx).Trace().Int("len", len(input.msg)).Msg("passBackward done")
 		return out, in, nil
 	}
 
